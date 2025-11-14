@@ -27,7 +27,7 @@ class TimesheetCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: isComplete ? Colors.white : Colors.white,
+          color: Colors.white,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,6 +66,8 @@ class TimesheetCard extends StatelessWidget {
                 ],
               ),
             ),
+
+            // User Name Section
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -93,6 +95,7 @@ class TimesheetCard extends StatelessWidget {
                 ],
               ),
             ),
+
             // Content
             Padding(
               padding: const EdgeInsets.all(16),
@@ -115,13 +118,25 @@ class TimesheetCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  // Address
+                  // Facility Address
                   _buildInfoRow(
                     Icons.location_on_outlined,
-                    'Location',
+                    'Facility Location',
                     timesheet.address,
                   ),
                   const SizedBox(height: 12),
+
+                  // User Clock-in Location (NEW)
+                  if (timesheet.userClockinLocation != null &&
+                      timesheet.userClockinLocation!.isNotEmpty) ...[
+                    _buildInfoRow(
+                      Icons.my_location,
+                      'Clock-In Location',
+                      timesheet.userClockinLocation!,
+                      color: Colors.green.shade700,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
                   // Notes
                   if (timesheet.notes.isNotEmpty) ...[
@@ -246,7 +261,7 @@ class TimesheetCard extends StatelessWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Colors.purple,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Row(
@@ -283,11 +298,16 @@ class TimesheetCard extends StatelessWidget {
     return isComplete ? Colors.purple : const Color(0xff0c2340);
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value, {
+    Color? color,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: Colors.grey.shade600),
+        Icon(icon, size: 18, color: color ?? Colors.grey.shade600),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -297,16 +317,17 @@ class TimesheetCard extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey.shade600,
+                  color: color ?? Colors.grey.shade600,
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
+                  color: color,
                 ),
               ),
             ],

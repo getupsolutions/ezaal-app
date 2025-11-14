@@ -14,6 +14,7 @@ class TimesheetEntity {
   final String managerName;
   final String managerDesignation;
   final bool hasManagerSignature;
+  final String? userClockinLocation;
 
   const TimesheetEntity({
     required this.id,
@@ -31,5 +32,6 @@ class TimesheetEntity {
     required this.managerName,
     required this.managerDesignation,
     required this.hasManagerSignature,
+    this.userClockinLocation
   });
 }

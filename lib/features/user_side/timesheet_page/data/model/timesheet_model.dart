@@ -17,6 +17,7 @@ class TimesheetModel extends TimesheetEntity {
     required super.managerName,
     required super.managerDesignation,
     required super.hasManagerSignature,
+    super.userClockinLocation,
   });
 
   factory TimesheetModel.fromJson(Map<String, dynamic> json) {
@@ -31,6 +32,7 @@ class TimesheetModel extends TimesheetEntity {
     // Format times
     final clockIn = json['sigin'] ?? '-';
     final clockOut = json['signout'] ?? '-';
+    final userLocation = json['user_clockin_location'];
 
     return TimesheetModel(
       userName: json['staffreqname'] ?? '',
@@ -49,6 +51,11 @@ class TimesheetModel extends TimesheetEntity {
       managerDesignation: json['managerdesig'] ?? '',
       hasManagerSignature:
           json['managsig'] != null && json['managsig'].toString().isNotEmpty,
+
+      userClockinLocation:
+          userLocation != null && userLocation.toString().isNotEmpty
+              ? userLocation.toString()
+              : null,
     );
   }
 
@@ -77,6 +84,7 @@ class TimesheetModel extends TimesheetEntity {
       'managerName': managerName,
       'managerDesignation': managerDesignation,
       'hasManagerSignature': hasManagerSignature,
+      'userClockinLocation': userClockinLocation,
     };
   }
 }
