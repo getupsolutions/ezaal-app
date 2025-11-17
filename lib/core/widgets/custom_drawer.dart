@@ -1,18 +1,16 @@
 import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
-import 'package:ezaal/core/widgets/show_dialog.dart';
 import 'package:ezaal/core/widgets/svg_imageviewer.dart';
 import 'package:ezaal/features/user_side/available_shift_page/presentation/pages/availableshift_page.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/pages/clockin_out_page.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_bloc.dart';
-import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_event.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_state.dart';
-import 'package:ezaal/features/user_side/login_screen/presentation/pages/login_screen.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/pages/user_details_page.dart';
 import 'package:ezaal/features/user_side/roster_page/presentation/pages/roster_page.dart';
 import 'package:ezaal/features/user_side/timesheet_page/presentation/screen/timesheet_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
@@ -25,6 +23,21 @@ class _CustomDrawerState extends State<CustomDrawer> {
   bool isFirstDropdownExpanded = false;
   bool isSecondDropdownExpanded = false;
   int selectedIndex = -1; // Default no selection
+
+  Future<void> _launchURL() async {
+    final Uri url = Uri.parse('https://getupsolutions.in');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      // Show error if URL can't be launched
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not open website'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -251,76 +264,53 @@ class _CustomDrawerState extends State<CustomDrawer> {
                           ),
                           onTap: () => NavigatorHelper.push(ClockInOutPage()),
                         ),
-                        // ListTile(
-                        //   leading: Icon(
-                        //     Icons.note,
-                        //     color:
-                        //         selectedIndex == 0
-                        //             ? Colors.white
-                        //             : Colors.white70,
-                        //     size: iconSize,
-                        //   ),
-                        //   title: Text(
-                        //     'Progress note',
-                        //     style: TextStyle(
-                        //       fontWeight: FontWeight.bold,
-                        //       color: kWhite,
-                        //       fontSize: titleFontSize,
-                        //     ),
-                        //   ),
-                        //   onTap: () => NavigatorHelper.push(ProgressnotePage()),
-                        // ),
                       ],
                     ),
                   ),
                 ),
 
-                // Logout at the bottom
+                // Developer credit at the bottom
                 Align(
                   alignment: Alignment.bottomCenter,
-                  child: ListTile(
-                    contentPadding: EdgeInsets.symmetric(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
                       horizontal: horizontalPadding,
-                      vertical: verticalPadding,
+                      vertical: verticalPadding * 2,
                     ),
-                    leading: SVGImageView(
-                      image: 'assets/svg/logout.svg',
-                      width: iconSize,
-                      height: iconSize,
-                      color: kRed,
-                    ),
-                    title: Text(
-                      'Logout',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: kWhite,
-                        fontSize: titleFontSize,
-                      ),
-                    ),
-                    onTap: () {
-                      CupertinoDialogUtils.showCupertinoDialogBox(
-                        context: context,
-                        title: 'Logout',
-                        content: 'Are you sure you want to logout?',
-                        actions: [
-                          CupertinoDialogActionModel(
-                            child: const Text('Cancel'),
-                            onPressed: () => Navigator.of(context).pop(),
-                            isDefaultAction: true,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Divider(
+                          color: Colors.white.withOpacity(0.3),
+                          thickness: 1,
+                        ),
+                        SizedBox(height: verticalPadding),
+                        GestureDetector(
+                          onTap: _launchURL,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Developed by ',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.7),
+                                  fontSize: subtitleFontSize,
+                                ),
+                              ),
+                              Text(
+                                'GetUp Solutions',
+                                style: TextStyle(
+                                  color: Colors.blue[300],
+                                  fontSize: subtitleFontSize,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ],
                           ),
-                          CupertinoDialogActionModel(
-                            child: const Text('Logout'),
-                            onPressed: () {
-                              context.read<AuthBloc>().add(LogoutRequested());
-                              NavigatorHelper.pushReplacement(
-                                const LoginScreen(),
-                              );
-                            },
-                            isDestructiveAction: true,
-                          ),
-                        ],
-                      );
-                    },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

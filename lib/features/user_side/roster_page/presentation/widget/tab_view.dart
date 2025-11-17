@@ -49,6 +49,13 @@ class _RosterTabViewState extends State<RosterTabView>
     super.dispose();
   }
 
+  // Helper method to check if a date has roster data
+  bool _hasRosterOnDate(DateTime day, List<dynamic> allRosters) {
+    final dateString =
+        "${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}";
+    return allRosters.any((roster) => roster.date == dateString);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -56,7 +63,6 @@ class _RosterTabViewState extends State<RosterTabView>
         title: 'My Roster',
         backgroundColor: primaryDarK,
         elevation: 2,
-        // ✅ Refresh button
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
@@ -69,8 +75,6 @@ class _RosterTabViewState extends State<RosterTabView>
             },
           ),
         ],
-        // ✅ Custom bottom widget (TabBar)
-        // We’ll pass it through PreferredSize in AppBar's bottom slot
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(kToolbarHeight),
           child: TabBar(
@@ -112,10 +116,12 @@ class _RosterTabViewState extends State<RosterTabView>
           }
 
           List<dynamic> selectedRosters = [];
+          List<dynamic> allRosters = [];
           bool hasData = false;
 
           if (state is RosterLoaded) {
             selectedRosters = state.filteredList;
+            allRosters = state.rosterList;
             hasData = selectedRosters.isNotEmpty;
           }
 
@@ -154,6 +160,15 @@ class _RosterTabViewState extends State<RosterTabView>
                               FilterRostersByDate(dateString),
                             );
                           },
+                          // ✅ Add event loader to show dots on dates with data
+                          eventLoader: (day) {
+                            if (_hasRosterOnDate(day, allRosters)) {
+                              return [
+                                'event',
+                              ]; // Return non-empty list to show marker
+                            }
+                            return [];
+                          },
                           calendarStyle: CalendarStyle(
                             selectedDecoration: BoxDecoration(
                               color: Colors.blue,
@@ -170,6 +185,16 @@ class _RosterTabViewState extends State<RosterTabView>
                             todayTextStyle: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
+                            ),
+                            // ✅ Style for the marker dot
+                            markerDecoration: BoxDecoration(
+                              color: Colors.orange,
+                              shape: BoxShape.circle,
+                            ),
+                            markersMaxCount: 1,
+                            markerSize: 7.0,
+                            markerMargin: const EdgeInsets.symmetric(
+                              horizontal: 1.0,
                             ),
                           ),
                           headerStyle: const HeaderStyle(
@@ -203,20 +228,45 @@ class _RosterTabViewState extends State<RosterTabView>
                         padding: const EdgeInsets.all(20),
                         child: Column(
                           children: [
+                            const Icon(
+                              Icons.calendar_today_outlined,
+                              size: 60,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 16),
                             const Text(
                               "No roster available for this date",
-                              style: TextStyle(fontSize: 16),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                            const SizedBox(height: 10),
-                            ElevatedButton(
-                              onPressed: () {
-                                context.read<RosterBloc>().add(ResetFilter());
-                                setState(() {
-                                  _selectedDay = null;
-                                });
-                              },
-                              child: const Text('Show All Rosters'),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Select a date with an orange dot to view roster",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                              textAlign: TextAlign.center,
                             ),
+                            // const SizedBox(height: 16),
+                            // ElevatedButton.icon(
+                            //   onPressed: () {
+                            //     context.read<RosterBloc>().add(ResetFilter());
+                            //     setState(() {
+                            //       _selectedDay = null;
+                            //     });
+                            //   },
+                            //   icon: const Icon(Icons.view_list),
+                            //   label: const Text('Show All Data'),
+                            //   style: ElevatedButton.styleFrom(
+                            //     padding: const EdgeInsets.symmetric(
+                            //       horizontal: 24,
+                            //       vertical: 12,
+                            //     ),
+                            //   ),
+                            // ),
                           ],
                         ),
                       ),
@@ -225,35 +275,96 @@ class _RosterTabViewState extends State<RosterTabView>
               ),
               // List View Tab
               hasData
-                  ? ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: selectedRosters.length,
-                    itemBuilder: (context, index) {
-                      print("Count is ${selectedRosters.length}");
-                      final roster = selectedRosters[index];
-                      return RosterCustomList(
-                        date: roster.date,
-                        day: roster.day,
-                        time: roster.time,
-                        location: roster.location,
-                      );
-                    },
+                  ? Column(
+                    children: [
+                      // ✅ Show All Data button at the top of list view
+                      if (selectedRosters.length < allRosters.length)
+                        // Padding(
+                        //   padding: const EdgeInsets.all(16),
+                        //   child: SizedBox(
+                        //     width: double.infinity,
+                        //     child: ElevatedButton.icon(
+                        //       onPressed: () {
+                        //         context.read<RosterBloc>().add(ResetFilter());
+                        //         setState(() {
+                        //           _selectedDay = null;
+                        //         });
+                        //       },
+                        //       icon: const Icon(Icons.view_list),
+                        //       label: Text(
+                        //         'Show All Data (${allRosters.length} total)',
+                        //       ),
+                        //       style: ElevatedButton.styleFrom(
+                        //         padding: const EdgeInsets.symmetric(
+                        //           horizontal: 24,
+                        //           vertical: 12,
+                        //         ),
+                        //       ),
+                        //     ),
+                        //   ),
+                        // ),
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: selectedRosters.length,
+                            itemBuilder: (context, index) {
+                              print("Count is ${selectedRosters.length}");
+                              final roster = selectedRosters[index];
+                              return RosterCustomList(
+                                date: roster.date,
+                                day: roster.day,
+                                time: roster.time,
+                                location: roster.location,
+                              );
+                            },
+                          ),
+                        ),
+                    ],
                   )
                   : Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        const Icon(
+                          Icons.event_busy,
+                          size: 60,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(height: 16),
                         const Text(
                           "No roster available",
-                          style: TextStyle(fontSize: 16),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: () {
-                            context.read<RosterBloc>().add(ResetFilter());
-                          },
-                          child: const Text('Show All Rosters'),
+                        const SizedBox(height: 8),
+                        Text(
+                          _selectedDay != null
+                              ? "Try selecting a different date"
+                              : "No rosters found in the system",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
                         ),
+                        // const SizedBox(height: 16),
+                        // ElevatedButton.icon(
+                        //   onPressed: () {
+                        //     context.read<RosterBloc>().add(ResetFilter());
+                        //     setState(() {
+                        //       _selectedDay = null;
+                        //     });
+                        //   },
+                        //   icon: const Icon(Icons.view_list),
+                        //   label: const Text('Show All Data'),
+                        //   style: ElevatedButton.styleFrom(
+                        //     padding: const EdgeInsets.symmetric(
+                        //       horizontal: 24,
+                        //       vertical: 12,
+                        //     ),
+                        //   ),
+                        // ),
                       ],
                     ),
                   ),

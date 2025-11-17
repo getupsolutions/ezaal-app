@@ -30,18 +30,25 @@ class RosterBloc extends Bloc<RosterEvent, RosterState> {
       final rosterList = await getRosterUseCase();
       print('Loaded ${rosterList.length} rosters');
 
-      // Initially show all rosters or filter by today's date
+      // ✅ Filter by today's date on initial load
       final today = DateTime.now();
       final todayString =
           "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
+      print('Today\'s date: $todayString');
+
+      // Filter rosters for today
       final todayRosters =
           rosterList.where((e) => e.date == todayString).toList();
 
+      print('Rosters found for today: ${todayRosters.length}');
+
+      // ✅ Always start with filtered view (today's date)
+      // This will show empty state if no rosters exist for today
       emit(
         RosterLoaded(
           rosterList: rosterList,
-          filteredList: todayRosters.isNotEmpty ? todayRosters : rosterList,
+          filteredList: todayRosters, // Show only today's rosters
         ),
       );
     } catch (e) {
@@ -78,6 +85,7 @@ class RosterBloc extends Bloc<RosterEvent, RosterState> {
   void _onResetFilter(ResetFilter event, Emitter<RosterState> emit) {
     if (state is RosterLoaded) {
       final currentState = state as RosterLoaded;
+      // ✅ Show all rosters when reset is triggered
       emit(currentState.copyWith(filteredList: currentState.rosterList));
     }
   }

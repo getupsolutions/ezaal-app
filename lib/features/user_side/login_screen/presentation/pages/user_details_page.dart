@@ -1,7 +1,10 @@
 import 'dart:ui';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
+import 'package:ezaal/core/widgets/show_dialog.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_bloc.dart';
+import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_event.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_state.dart';
+import 'package:ezaal/features/user_side/login_screen/presentation/pages/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -135,10 +138,36 @@ class UserDetailsPage extends StatelessWidget {
 
                           // Stylish Back Button
                           ElevatedButton.icon(
-                            onPressed: () => NavigatorHelper.pop(),
+                            onPressed: () {
+                              CupertinoDialogUtils.showCupertinoDialogBox(
+                                context: context,
+                                title: 'Logout',
+                                content: 'Are you sure you want to logout?',
+                                actions: [
+                                  CupertinoDialogActionModel(
+                                    child: const Text('Cancel'),
+                                    onPressed:
+                                        () => Navigator.of(context).pop(),
+                                    isDefaultAction: true,
+                                  ),
+                                  CupertinoDialogActionModel(
+                                    child: const Text('Logout'),
+                                    onPressed: () {
+                                      context.read<AuthBloc>().add(
+                                        LogoutRequested(),
+                                      );
+                                      NavigatorHelper.pushReplacement(
+                                        const LoginScreen(),
+                                      );
+                                    },
+                                    isDestructiveAction: true,
+                                  ),
+                                ],
+                              );
+                            },
                             icon: const Icon(Icons.arrow_back_ios_new_rounded),
                             label: const Text(
-                              "Go Back",
+                              "Log Out",
                               style: TextStyle(fontWeight: FontWeight.w600),
                             ),
                             style: ElevatedButton.styleFrom(

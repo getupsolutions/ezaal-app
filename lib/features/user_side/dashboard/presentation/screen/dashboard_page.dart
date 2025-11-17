@@ -252,7 +252,7 @@ class _DashboardViewState extends State<DashboardView> {
               color: const Color(0xFF1F2937),
               child: Center(
                 child: Text(
-                  '2025 © All rights reserved',
+                  'All rights reserved by Ezaal Healthcare',
                   style: TextStyle(
                     color: Colors.grey[400],
                     fontSize: isSmallScreen ? 12 : 14,

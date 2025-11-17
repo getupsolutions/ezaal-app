@@ -39,8 +39,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Image.asset(
-                      'assets/Logo/admin-logo.png',
-                      height: screenHeight * 0.07, // Responsive logo size
+                      'assets/Logo/Media.jpeg',
+                      height: screenHeight * 0.10, // Responsive logo size
                     ),
                     SizedBox(height: screenHeight * 0.07),
 

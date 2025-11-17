@@ -50,7 +50,30 @@ class RosterCustomList extends StatelessWidget {
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [Text(time), Text(location)],
+              children: [
+                // Time text - fixed width
+                Text(
+                  time,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Location text - expandable and ellipsis if too long
+                Expanded(
+                  child: Text(
+                    location,
+                    textAlign: TextAlign.right,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
