@@ -1,4 +1,5 @@
 import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/entity/slot_entity.dart';
+import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/queded_operation.dart';
 
 class SlotModel extends SlotEntity {
   const SlotModel({
@@ -48,5 +49,22 @@ class SlotModel extends SlotEntity {
       'managerStatus': managerStatus,
       'userClockinLocation': userClockinLocation,
     };
+  }
+
+  SlotModel applyLocalState(LocalSlotState? localState) {
+    if (localState == null) return this;
+
+    return SlotModel(
+      id: id,
+      time: time,
+      role: role,
+      location: location,
+      address: address,
+      // Apply local state OR server state
+      inTimeStatus: localState.hasLocalClockIn || inTimeStatus,
+      outTimeStatus: localState.hasLocalClockOut || outTimeStatus,
+      managerStatus: localState.hasLocalManagerInfo || managerStatus,
+      userClockinLocation: userClockinLocation,
+    );
   }
 }

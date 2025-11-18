@@ -14,6 +14,7 @@ import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/usecase/get_
 import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/usecase/managerinfo_usecase.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_bloc.dart';
+import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/queded_operation.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:ezaal/features/user_side/login_screen/data/data_source/auth_remotedatasource.dart';
 import 'package:ezaal/features/user_side/login_screen/data/repository/auth_repositoryimp.dart';
@@ -101,5 +102,13 @@ Future<void> init() async {
   );
   sl.registerLazySingleton<TimesheetRemoteDataSource>(
     () => TimesheetRemoteDataSource(),
+  );
+
+  //Offline Sync Service
+  sl.registerLazySingleton<OfflineSyncService>(
+    () => OfflineSyncService(
+      attendanceDataSource: sl<AttendanceRemoteDataSource>(),
+      managerInfoDataSource: sl<ManagerInfoRemoteDataSource>(),
+    ),
   );
 }

@@ -2,12 +2,17 @@
 // import 'package:ezaal/core/presentation/pages/organization_page/bloc/org_bloc.dart';
 // import 'package:ezaal/core/presentation/pages/splash_screen/bloc/splash_bloc.dart';
 // import 'package:ezaal/core/presentation/utils/navigator_helper.dart';
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/user_side/available_shift_page/presentation/bloc/shift_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/attendance_bloc.dart';
+import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/queded_operation.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_bloc.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_event.dart';
@@ -28,10 +33,119 @@ void main() async {
   runApp(MyApp(initialToken: token));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final String? initialToken;
 
   const MyApp({super.key, this.initialToken});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _isOnline = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initConnectivityListener();
+    _checkInitialConnectivity();
+  }
+
+  void _initConnectivityListener() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((
+      List<ConnectivityResult> results,
+    ) {
+      _handleConnectivityChange(results);
+    });
+  }
+
+  Future<void> _checkInitialConnectivity() async {
+    final isOnline = await OfflineQueueService.isOnline();
+    setState(() {
+      _isOnline = isOnline;
+    });
+
+    if (isOnline) {
+      _syncOfflineOperations();
+    }
+  }
+
+  void _handleConnectivityChange(List<ConnectivityResult> results) async {
+    final wasOffline = !_isOnline;
+    final isNowOnline = results.first != ConnectivityResult.none;
+
+    setState(() {
+      _isOnline = isNowOnline;
+    });
+
+    // If device just came online, sync
+    if (wasOffline && isNowOnline) {
+      debugPrint('🌐 Device back online - triggering sync');
+      _syncOfflineOperations();
+    } else if (!isNowOnline) {
+      debugPrint('📴 Device went offline');
+    }
+  }
+
+  Future<void> _syncOfflineOperations() async {
+    final queueCount = await OfflineQueueService.getQueueCount();
+
+    if (queueCount == 0) {
+      debugPrint('✅ No offline operations to sync');
+      return;
+    }
+
+    debugPrint('🔄 Syncing $queueCount offline operations...');
+
+    try {
+      final syncService = di.sl<OfflineSyncService>();
+      final result = await syncService.syncAllOperations();
+
+      if (result['success']) {
+        debugPrint('✅ All offline operations synced successfully');
+
+        // Show notification to user
+        if (mounted && NavigatorHelper.navigatorKey.currentContext != null) {
+          ScaffoldMessenger.of(
+            NavigatorHelper.navigatorKey.currentContext!,
+          ).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ ${result['synced']} offline operation(s) synced successfully',
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        debugPrint('⚠️ Some operations failed to sync');
+
+        // Show notification about partial sync
+        if (mounted && NavigatorHelper.navigatorKey.currentContext != null) {
+          ScaffoldMessenger.of(
+            NavigatorHelper.navigatorKey.currentContext!,
+          ).showSnackBar(
+            SnackBar(
+              content: Text(result['message']),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error during sync: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +165,44 @@ class MyApp extends StatelessWidget {
         navigatorKey: NavigatorHelper.navigatorKey,
         home: SplashScreen(),
         debugShowCheckedModeBanner: false,
+        builder: (context, child) {
+          return Stack(
+            children: [
+              child!,
+              if (!_isOnline)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    color: kRed,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: SafeArea(
+                      bottom: false,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.cloud_off, color: kWhite, size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            'Offline Mode - Data will sync when online',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

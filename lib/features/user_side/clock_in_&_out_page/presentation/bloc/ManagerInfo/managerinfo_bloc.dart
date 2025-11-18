@@ -1,9 +1,9 @@
 import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/usecase/managerinfo_usecase.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_event.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_state.dart';
+import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/queded_operation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
 
 class ManagerInfoBloc extends Bloc<ManagerInfoEvent, ManagerInfoState> {
   final SubmitManagerInfoUseCase submitManagerInfoUseCase;
@@ -26,6 +26,10 @@ class ManagerInfoBloc extends Bloc<ManagerInfoEvent, ManagerInfoState> {
     emit(ManagerInfoLoading());
     debugPrint('State emitted: ManagerInfoLoading');
 
+    // ✅ Check if device is online BEFORE calling use case
+    final isOnline = await OfflineQueueService.isOnline();
+    debugPrint('Device online: $isOnline');
+
     try {
       await submitManagerInfoUseCase(
         requestID: event.requestID,
@@ -34,8 +38,10 @@ class ManagerInfoBloc extends Bloc<ManagerInfoEvent, ManagerInfoState> {
         signatureBytes: event.signatureBytes,
       );
       debugPrint('✅ Manager info use case completed successfully');
-      emit(ManagerInfoSuccess());
-      debugPrint('State emitted: ManagerInfoSuccess');
+      emit(
+        ManagerInfoSuccess(isOfflineQueued: !isOnline),
+      ); // ✅ Pass offline status
+      debugPrint('State emitted: ManagerInfoSuccess (offline: ${!isOnline})');
     } catch (e) {
       debugPrint('❌ Manager info error: $e');
       debugPrint('Error type: ${e.runtimeType}');

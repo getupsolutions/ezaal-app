@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/data/models/slot_model.dart';
+import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/queded_operation.dart';
 import 'package:http/http.dart' as http;
 
 class AttendanceRemoteDataSource {
@@ -51,10 +52,29 @@ class AttendanceRemoteDataSource {
     String? notes,
     required String signintype,
     String? userLocation,
+    bool isRetry = false, // ✅ Add flag to prevent infinite recursion
   }) async {
+    // Check if online (only if not a retry from sync service)
+    if (!isRetry) {
+      final isOnline = await OfflineQueueService.isOnline();
+
+      if (!isOnline) {
+        // Queue for later
+        await OfflineQueueService.queueOperation(OperationType.clockIn, {
+          'requestID': requestID,
+          'inTime': inTime,
+          'notes': notes,
+          'signintype': signintype,
+          'userLocation': userLocation,
+        });
+        print('📥 Clock-in queued for offline sync');
+        return; // Return successfully - operation queued
+      }
+    }
+
+    // Online - proceed with API call
     final accessToken = await TokenStorage.getAccessToken();
 
-    // Match PHP backend expected fields
     final payload = {
       'requestID': requestID,
       'inTime': inTime,
@@ -68,26 +88,51 @@ class AttendanceRemoteDataSource {
     print("Payload: ${jsonEncode(payload)}");
     print("=====================");
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/clock-in'),
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(payload),
-    );
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/clock-in'),
+            headers: {
+              'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Connection timeout - request took too long');
+            },
+          );
 
-    print("=== CLOCK IN RESPONSE ===");
-    print("Status: ${response.statusCode}");
-    print("Body: ${response.body}");
-    print("========================");
+      print("=== CLOCK IN RESPONSE ===");
+      print("Status: ${response.statusCode}");
+      print("Body: ${response.body}");
+      print("========================");
 
-    if (response.statusCode != 200) {
-      print(response.body);
+      if (response.statusCode != 200) {
+        throw Exception(
+          'Failed to clock in: ${response.statusCode} ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('❌ Clock-in API call failed: $e');
 
-      throw Exception(
-        'Failed to clock in: ${response.statusCode} ${response.body}',
-      );
+      // Queue the operation if API call fails (only if not already a retry)
+      if (!isRetry) {
+        await OfflineQueueService.queueOperation(OperationType.clockIn, {
+          'requestID': requestID,
+          'inTime': inTime,
+          'notes': notes,
+          'signintype': signintype,
+          'userLocation': userLocation,
+        });
+        print('📥 Clock-in queued due to API failure');
+        return; // Don't rethrow - operation has been queued successfully
+      }
+
+      // If this is a retry, rethrow the error
+      rethrow;
     }
   }
 
@@ -97,7 +142,27 @@ class AttendanceRemoteDataSource {
     String? shiftbreak,
     String? notes,
     required String signouttype,
+    bool isRetry = false, // ✅ Add flag to prevent infinite recursion
   }) async {
+    // Check if online (only if not a retry from sync service)
+    if (!isRetry) {
+      final isOnline = await OfflineQueueService.isOnline();
+
+      if (!isOnline) {
+        // Queue for later
+        await OfflineQueueService.queueOperation(OperationType.clockOut, {
+          'requestID': requestID,
+          'outTime': outTime,
+          'shiftbreak': shiftbreak,
+          'notes': notes,
+          'signouttype': signouttype,
+        });
+        print('📥 Clock-out queued for offline sync');
+        return; // Return successfully - operation queued
+      }
+    }
+
+    // Online - proceed with API call
     final accessToken = await TokenStorage.getAccessToken();
 
     final payload = {
@@ -113,48 +178,67 @@ class AttendanceRemoteDataSource {
     print("Payload: ${jsonEncode(payload)}");
     print("======================");
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/clock-out'),
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(payload),
-    );
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/clock-out'),
+            headers: {
+              'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Connection timeout - request took too long');
+            },
+          );
 
-    print("=== CLOCK OUT RESPONSE ===");
-    print("Status: ${response.statusCode}");
-    print("Body: ${response.body}");
-    print("Headers: ${response.headers}");
-    print("=========================");
+      print("=== CLOCK OUT RESPONSE ===");
+      print("Status: ${response.statusCode}");
+      print("Body: ${response.body}");
+      print("Headers: ${response.headers}");
+      print("=========================");
 
-    // Accept both 200 and 404 since PHP returns 404 on success (based on your backend code)
-    if (response.statusCode == 200 || response.statusCode == 404) {
-      try {
-        final jsonData = jsonDecode(response.body);
-        final message = jsonData['message'] ?? '';
+      if (response.statusCode == 200 || response.statusCode == 404) {
+        try {
+          final jsonData = jsonDecode(response.body);
+          final message = jsonData['message'] ?? '';
 
-        // Check if the message indicates success
-        if (message.toLowerCase().contains('success') ||
-            message.toLowerCase().contains('logged')) {
-          return; // Success
-        } else {
-          throw Exception('Clock out failed: $message');
+          if (message.toLowerCase().contains('success') ||
+              message.toLowerCase().contains('logged')) {
+            return;
+          } else {
+            throw Exception('Clock out failed: $message');
+          }
+        } catch (e) {
+          if (e is Exception) rethrow;
+          throw Exception('Clock out failed: Unable to parse response');
         }
-      } catch (e) {
-        if (e is Exception) rethrow;
-        throw Exception('Clock out failed: Unable to parse response');
-      }
-    } else {
-      try {
-        final errorBody = jsonDecode(response.body);
-        final errorMessage = errorBody['message'] ?? 'Unknown error';
-        throw Exception('Clock out failed: $errorMessage');
-      } catch (e) {
+      } else {
         throw Exception(
           'Clock out failed: ${response.statusCode} ${response.body}',
         );
       }
+    } catch (e) {
+      print('❌ Clock-out API call failed: $e');
+
+      // Queue the operation if API call fails (only if not already a retry)
+      if (!isRetry) {
+        await OfflineQueueService.queueOperation(OperationType.clockOut, {
+          'requestID': requestID,
+          'outTime': outTime,
+          'shiftbreak': shiftbreak,
+          'notes': notes,
+          'signouttype': signouttype,
+        });
+        print('📥 Clock-out queued due to API failure');
+        return; // Don't rethrow - operation has been queued successfully
+      }
+
+      // If this is a retry, rethrow the error
+      rethrow;
     }
   }
 }

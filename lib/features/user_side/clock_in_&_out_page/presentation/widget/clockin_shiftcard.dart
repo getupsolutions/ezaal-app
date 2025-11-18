@@ -6,6 +6,7 @@ import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/M
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_event.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/attendance_bloc.dart';
+import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/attendance_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -19,10 +20,10 @@ class ClockinShiftCard extends StatelessWidget {
   final String address;
   final bool inTimeStatus;
   final bool outTimeStatus;
-  final bool managerStatus; // Add this
-
+  final bool managerStatus;
   final double screenWidth;
   final double screenHeight;
+  final VoidCallback? onOperationQueued;
 
   const ClockinShiftCard({
     super.key,
@@ -36,6 +37,7 @@ class ClockinShiftCard extends StatelessWidget {
     required this.managerStatus,
     required this.screenWidth,
     required this.screenHeight,
+    this.onOperationQueued,
   });
 
   @override
@@ -51,26 +53,44 @@ class ClockinShiftCard extends StatelessWidget {
             ),
           );
         } else if (state is ClockInSuccess) {
+          onOperationQueued?.call(); // Notify parent to update badge
+
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Clocked in successfully'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
+            SnackBar(
+              content: Text(
+                state.isOfflineQueued
+                    ? '📥 Clock-in saved. Will sync when online.'
+                    : '✅ Clocked in successfully',
+              ),
+              backgroundColor:
+                  state.isOfflineQueued ? Colors.blue : Colors.green,
+              duration: const Duration(seconds: 2),
             ),
           );
+
+          // ✅ ALWAYS refresh slots to show updated UI state
           Future.delayed(const Duration(milliseconds: 500), () {
             if (context.mounted) {
               context.read<SlotBloc>().add(LoadSlots());
             }
           });
         } else if (state is ClockOutSuccess) {
+          onOperationQueued?.call(); // Notify parent to update badge
+
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Clocked out successfully'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
+            SnackBar(
+              content: Text(
+                state.isOfflineQueued
+                    ? '📥 Clock-out saved. Will sync when online.'
+                    : '✅ Clocked out successfully',
+              ),
+              backgroundColor:
+                  state.isOfflineQueued ? Colors.blue : Colors.green,
+              duration: const Duration(seconds: 2),
             ),
           );
+
+          // ✅ ALWAYS refresh slots to show updated UI state
           Future.delayed(const Duration(milliseconds: 500), () {
             if (context.mounted) {
               context.read<SlotBloc>().add(LoadSlots());
@@ -79,9 +99,12 @@ class ClockinShiftCard extends StatelessWidget {
         }
       },
       builder: (context, state) {
+        // ✅ Updated button logic: showClockIn OR showClockOut OR showManagerInfo
         final bool showClockIn = !inTimeStatus;
         final bool showClockOut = inTimeStatus && !outTimeStatus;
-        final bool isCompleted = inTimeStatus && outTimeStatus;
+        final bool showManagerInfo =
+            inTimeStatus && outTimeStatus && !managerStatus;
+        final bool isCompleted = inTimeStatus && outTimeStatus && managerStatus;
         final bool isLoading = state is AttendanceLoading;
 
         return Padding(
@@ -202,8 +225,7 @@ class ClockinShiftCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                      ],
-                      if (inTimeStatus && !outTimeStatus) ...[
+                      ] else if (showClockOut || showManagerInfo) ...[
                         SizedBox(height: screenHeight * 0.008),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -241,11 +263,11 @@ class ClockinShiftCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 SizedBox(
                   height: 40,
-                  width: isCompleted ? 110 : 100,
+                  width: (showManagerInfo || isCompleted) ? 110 : 100,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
-                          isCompleted
+                          isCompleted || showManagerInfo
                               ? Colors.blue
                               : (showClockOut ? Colors.red : primaryColor),
                       shape: RoundedRectangleBorder(
@@ -257,12 +279,12 @@ class ClockinShiftCard extends StatelessWidget {
                         isLoading
                             ? null
                             : () async {
-                              if (isCompleted) {
-                                _showManagerInfoDialog(context);
+                              if (showManagerInfo || isCompleted) {
+                                showManagerInfoDialog(context);
                               } else if (showClockOut) {
                                 await _handleClockOut(context);
                               } else if (showClockIn) {
-                                await _handleClockIn(context);
+                                await handleClockIn(context);
                               }
                             },
                     child:
@@ -276,7 +298,7 @@ class ClockinShiftCard extends StatelessWidget {
                               ),
                             )
                             : Text(
-                              isCompleted
+                              (showManagerInfo || isCompleted)
                                   ? 'Manager Info'
                                   : (showClockOut ? 'Clock Out' : 'Clock In'),
                               style: const TextStyle(
@@ -295,10 +317,10 @@ class ClockinShiftCard extends StatelessWidget {
     );
   }
 
-  Future<void> _handleClockIn(BuildContext context) async {
+  Future<void> handleClockIn(BuildContext context) async {
     final confirm = await _showConfirmationDialog(context);
     if (!confirm || !context.mounted) return;
-    // Get user's current location
+
     final userLocation = await LocationService.getCurrentLocation();
 
     if (userLocation == null) {
@@ -311,8 +333,6 @@ class ClockinShiftCard extends StatelessWidget {
             backgroundColor: Colors.orange,
           ),
         );
-        // You can choose to either return here or continue without location
-        // return; // Uncomment to block clock-in without location
       }
     }
 
@@ -345,7 +365,7 @@ class ClockinShiftCard extends StatelessWidget {
       }
 
       if (needsReason) {
-        await _showReasonDialog(
+        await showReasonDialog(
           context,
           title: signintype == 'early' ? 'Early Clock-In' : 'Late Clock-In',
           requestID: requestID,
@@ -416,12 +436,11 @@ class ClockinShiftCard extends StatelessWidget {
       debugPrint('Needs reason: $needsReason');
       debugPrint('================================');
 
-      // CRITICAL FIX: Capture BLoC reference BEFORE showing dialog
       if (!context.mounted) return;
 
       final attendanceBloc = context.read<AttendanceBloc>();
 
-      await _showClockOutDialog(
+      await showClockOutDialog(
         context,
         title:
             needsReason
@@ -437,7 +456,7 @@ class ClockinShiftCard extends StatelessWidget {
         requestID: requestID,
         currentTime: currentTime,
         signouttype: signouttype,
-        attendanceBloc: attendanceBloc, // Pass BLoC directly
+        attendanceBloc: attendanceBloc,
       );
     } catch (e) {
       debugPrint('❌ Time parse error in _handleClockOut: $e');
@@ -484,7 +503,7 @@ class ClockinShiftCard extends StatelessWidget {
         false;
   }
 
-  Future<void> _showReasonDialog(
+  Future<void> showReasonDialog(
     BuildContext context, {
     required String title,
     required String requestID,
@@ -554,7 +573,7 @@ class ClockinShiftCard extends StatelessWidget {
     );
   }
 
-  Future<void> _showClockOutDialog(
+  Future<void> showClockOutDialog(
     BuildContext context, {
     required String title,
     required String message,
@@ -562,7 +581,7 @@ class ClockinShiftCard extends StatelessWidget {
     required String requestID,
     required String currentTime,
     required String signouttype,
-    required AttendanceBloc attendanceBloc, // Receive BLoC directly
+    required AttendanceBloc attendanceBloc,
   }) async {
     debugPrint('=== SHOWING CLOCK OUT DIALOG ===');
     debugPrint('Title: $title');
@@ -571,7 +590,6 @@ class ClockinShiftCard extends StatelessWidget {
     final TextEditingController breakTimeController = TextEditingController();
     final TextEditingController reasonController = TextEditingController();
 
-    // Store values before dialog closes
     String? breakTime;
     String? reason;
 
@@ -653,7 +671,6 @@ class ClockinShiftCard extends StatelessWidget {
                     return;
                   }
 
-                  // Store values BEFORE closing dialog
                   breakTime = breakTimeController.text.trim();
                   reason = needsReason ? reasonController.text.trim() : null;
 
@@ -672,7 +689,6 @@ class ClockinShiftCard extends StatelessWidget {
     debugPrint('=== DIALOG RESULT ===');
     debugPrint('Dialog result: $result');
 
-    // CRITICAL FIX: Use BLoC directly without checking context.mounted
     if (result == true) {
       debugPrint('=== SUBMITTING CLOCK OUT ===');
       debugPrint('Request ID: $requestID');
@@ -682,7 +698,6 @@ class ClockinShiftCard extends StatelessWidget {
       debugPrint('Notes: $reason');
       debugPrint('===========================');
 
-      // Use the BLoC reference we captured earlier
       attendanceBloc.add(
         ClockOutRequested(
           requestID: requestID,
@@ -699,7 +714,7 @@ class ClockinShiftCard extends StatelessWidget {
     }
   }
 
-  void _showManagerInfoDialog(BuildContext context) {
+  void showManagerInfoDialog(BuildContext context) {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController designationController = TextEditingController();
     final SignatureController signatureController = SignatureController(
@@ -708,7 +723,6 @@ class ClockinShiftCard extends StatelessWidget {
       exportBackgroundColor: Colors.white,
     );
 
-    // Get BLoC before showing dialog
     final managerInfoBloc = context.read<ManagerInfoBloc>();
 
     showDialog(
@@ -734,7 +748,6 @@ class ClockinShiftCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // Full Name Field
                 TextField(
                   controller: nameController,
                   decoration: const InputDecoration(
@@ -744,7 +757,6 @@ class ClockinShiftCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // Designation Field
                 TextField(
                   controller: designationController,
                   decoration: const InputDecoration(
@@ -760,7 +772,6 @@ class ClockinShiftCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
 
-                // Signature Pad
                 Container(
                   width: MediaQuery.of(dialogContext).size.width * 0.8,
                   height: 150,
@@ -776,7 +787,6 @@ class ClockinShiftCard extends StatelessWidget {
 
                 const SizedBox(height: 8),
 
-                // Signature actions
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -807,18 +817,31 @@ class ClockinShiftCard extends StatelessWidget {
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
+
             BlocConsumer<ManagerInfoBloc, ManagerInfoState>(
               listener: (context, state) {
                 if (state is ManagerInfoSuccess) {
                   Navigator.pop(dialogContext);
+
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Manager info recorded successfully'),
-                      backgroundColor: Colors.green,
+                    SnackBar(
+                      content: Text(
+                        state.isOfflineQueued
+                            ? '📥 Manager info saved. Will sync when online.'
+                            : '✅ Manager info recorded successfully',
+                      ),
+                      backgroundColor:
+                          state.isOfflineQueued ? Colors.blue : Colors.green,
                     ),
                   );
-                  // Reload slots
-                  context.read<SlotBloc>().add(LoadSlots());
+
+                  onOperationQueued?.call();
+
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    if (context.mounted) {
+                      context.read<SlotBloc>().add(LoadSlots());
+                    }
+                  });
                 } else if (state is ManagerInfoFailure) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -828,6 +851,7 @@ class ClockinShiftCard extends StatelessWidget {
                   );
                 }
               },
+
               builder: (context, state) {
                 final isLoading = state is ManagerInfoLoading;
 
@@ -860,7 +884,6 @@ class ClockinShiftCard extends StatelessWidget {
                               return;
                             }
 
-                            // Export signature as bytes
                             final signatureBytes =
                                 await signatureController.toPngBytes();
 
@@ -874,7 +897,6 @@ class ClockinShiftCard extends StatelessWidget {
                               return;
                             }
 
-                            // Submit via BLoC
                             managerInfoBloc.add(
                               SubmitManagerInfoRequested(
                                 requestID: requestID,

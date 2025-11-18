@@ -1,5 +1,5 @@
 // ====================
-// 1. offline_queue_service.dart
+// offline_queue_service.dart - ENHANCED VERSION
 // ====================
 import 'dart:convert';
 import 'dart:typed_data';
@@ -15,7 +15,7 @@ class QueuedOperation {
   final Map<String, dynamic> data;
   final DateTime timestamp;
   final int retryCount;
-  final String? signatureBase64; // For manager info signatures
+  final String? signatureBase64;
 
   QueuedOperation({
     required this.id,
@@ -27,13 +27,13 @@ class QueuedOperation {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'type': type.toString(),
-        'data': data,
-        'timestamp': timestamp.toIso8601String(),
-        'retryCount': retryCount,
-        if (signatureBase64 != null) 'signatureBase64': signatureBase64,
-      };
+    'id': id,
+    'type': type.toString(),
+    'data': data,
+    'timestamp': timestamp.toIso8601String(),
+    'retryCount': retryCount,
+    if (signatureBase64 != null) 'signatureBase64': signatureBase64,
+  };
 
   factory QueuedOperation.fromJson(Map<String, dynamic> json) {
     return QueuedOperation(
@@ -60,23 +60,53 @@ class QueuedOperation {
   }
 }
 
+// ✅ Local state for tracking offline operations
+class LocalSlotState {
+  final String requestID;
+  final bool hasLocalClockIn;
+  final bool hasLocalClockOut;
+  final bool hasLocalManagerInfo;
+
+  LocalSlotState({
+    required this.requestID,
+    this.hasLocalClockIn = false,
+    this.hasLocalClockOut = false,
+    this.hasLocalManagerInfo = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'requestID': requestID,
+    'hasLocalClockIn': hasLocalClockIn,
+    'hasLocalClockOut': hasLocalClockOut,
+    'hasLocalManagerInfo': hasLocalManagerInfo,
+  };
+
+  factory LocalSlotState.fromJson(Map<String, dynamic> json) {
+    return LocalSlotState(
+      requestID: json['requestID'],
+      hasLocalClockIn: json['hasLocalClockIn'] ?? false,
+      hasLocalClockOut: json['hasLocalClockOut'] ?? false,
+      hasLocalManagerInfo: json['hasLocalManagerInfo'] ?? false,
+    );
+  }
+}
+
 class OfflineQueueService {
   static const String _queueKey = 'offline_operations_queue';
   static const String _syncStatusKey = 'offline_sync_status';
+  static const String _localStateKey = 'local_slot_states';
   static const int maxRetries = 3;
 
-  // Check if device is online
   static Future<bool> isOnline() async {
     try {
       final connectivityResult = await Connectivity().checkConnectivity();
-      return connectivityResult != ConnectivityResult.none;
+      return connectivityResult.first != ConnectivityResult.none;
     } catch (e) {
-      print('Error checking connectivity: $e');
+      debugPrint('Error checking connectivity: $e');
       return false;
     }
   }
 
-  // Add operation to queue
   static Future<void> queueOperation(
     OperationType type,
     Map<String, dynamic> data, {
@@ -85,7 +115,6 @@ class OfflineQueueService {
     final prefs = await SharedPreferences.getInstance();
     final queue = await getQueue();
 
-    // Convert signature to base64 if provided
     String? signatureBase64;
     if (signatureBytes != null) {
       signatureBase64 = base64Encode(signatureBytes);
@@ -102,12 +131,101 @@ class OfflineQueueService {
     queue.add(operation);
     await _saveQueue(queue);
 
-    print('📥 Queued ${type.toString()}: ${operation.id}');
-    print('   Request ID: ${data['requestID']}');
-    print('   Queue size: ${queue.length}');
+    // ✅ Update local state
+    await _updateLocalState(data['requestID'], type);
+
+    debugPrint('📥 Queued ${type.toString()}: ${operation.id}');
+    debugPrint('   Request ID: ${data['requestID']}');
+    debugPrint('   Queue size: ${queue.length}');
   }
 
-  // Get all queued operations
+  // ✅ Update local state when operation is queued
+  static Future<void> _updateLocalState(
+    String requestID,
+    OperationType type,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final statesJson = prefs.getString(_localStateKey);
+
+    Map<String, LocalSlotState> states = {};
+    if (statesJson != null) {
+      final decoded = jsonDecode(statesJson) as Map<String, dynamic>;
+      states = decoded.map(
+        (key, value) => MapEntry(key, LocalSlotState.fromJson(value)),
+      );
+    }
+
+    final currentState =
+        states[requestID] ?? LocalSlotState(requestID: requestID);
+
+    switch (type) {
+      case OperationType.clockIn:
+        states[requestID] = LocalSlotState(
+          requestID: requestID,
+          hasLocalClockIn: true,
+          hasLocalClockOut: currentState.hasLocalClockOut,
+          hasLocalManagerInfo: currentState.hasLocalManagerInfo,
+        );
+        break;
+      case OperationType.clockOut:
+        states[requestID] = LocalSlotState(
+          requestID: requestID,
+          hasLocalClockIn: currentState.hasLocalClockIn,
+          hasLocalClockOut: true,
+          hasLocalManagerInfo: currentState.hasLocalManagerInfo,
+        );
+        break;
+      case OperationType.managerInfo:
+        states[requestID] = LocalSlotState(
+          requestID: requestID,
+          hasLocalClockIn: currentState.hasLocalClockIn,
+          hasLocalClockOut: currentState.hasLocalClockOut,
+          hasLocalManagerInfo: true,
+        );
+        break;
+    }
+
+    final encoded = jsonEncode(
+      states.map((key, value) => MapEntry(key, value.toJson())),
+    );
+    await prefs.setString(_localStateKey, encoded);
+  }
+
+  // ✅ Get local state for a specific request
+  static Future<LocalSlotState?> getLocalState(String requestID) async {
+    final prefs = await SharedPreferences.getInstance();
+    final statesJson = prefs.getString(_localStateKey);
+
+    if (statesJson == null) return null;
+
+    final decoded = jsonDecode(statesJson) as Map<String, dynamic>;
+    final states = decoded.map(
+      (key, value) => MapEntry(key, LocalSlotState.fromJson(value)),
+    );
+
+    return states[requestID];
+  }
+
+  // ✅ Clear local state for a specific request
+  static Future<void> clearLocalState(String requestID) async {
+    final prefs = await SharedPreferences.getInstance();
+    final statesJson = prefs.getString(_localStateKey);
+
+    if (statesJson == null) return;
+
+    final decoded = jsonDecode(statesJson) as Map<String, dynamic>;
+    final states = decoded.map(
+      (key, value) => MapEntry(key, LocalSlotState.fromJson(value)),
+    );
+
+    states.remove(requestID);
+
+    final encoded = jsonEncode(
+      states.map((key, value) => MapEntry(key, value.toJson())),
+    );
+    await prefs.setString(_localStateKey, encoded);
+  }
+
   static Future<List<QueuedOperation>> getQueue() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -118,31 +236,44 @@ class OfflineQueueService {
       final List<dynamic> decoded = jsonDecode(queueJson);
       return decoded.map((e) => QueuedOperation.fromJson(e)).toList();
     } catch (e) {
-      print('Error loading queue: $e');
+      debugPrint('Error loading queue: $e');
       return [];
     }
   }
 
-  // Save queue to storage
   static Future<void> _saveQueue(List<QueuedOperation> queue) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final encoded = jsonEncode(queue.map((e) => e.toJson()).toList());
       await prefs.setString(_queueKey, encoded);
     } catch (e) {
-      print('Error saving queue: $e');
+      debugPrint('Error saving queue: $e');
     }
   }
 
-  // Remove operation from queue
   static Future<void> removeOperation(String operationId) async {
     final queue = await getQueue();
+    final operation = queue.firstWhere(
+      (op) => op.id == operationId,
+      orElse: () => throw Exception('Operation not found'),
+    );
+
     queue.removeWhere((op) => op.id == operationId);
     await _saveQueue(queue);
-    print('✅ Removed operation: $operationId');
+
+    // ✅ Check if all operations for this request are done
+    final requestID = operation.data['requestID'];
+    final remainingOps =
+        queue.where((op) => op.data['requestID'] == requestID).toList();
+
+    if (remainingOps.isEmpty) {
+      // All operations synced, clear local state
+      await clearLocalState(requestID);
+    }
+
+    debugPrint('✅ Removed operation: $operationId');
   }
 
-  // Update operation retry count
   static Future<void> updateRetryCount(
     String operationId,
     int retryCount,
@@ -156,32 +287,28 @@ class OfflineQueueService {
     }
   }
 
-  // Clear entire queue
   static Future<void> clearQueue() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_queueKey);
-    print('🗑️ Queue cleared');
+    await prefs.remove(_localStateKey); // ✅ Clear local states too
+    debugPrint('🗑️ Queue cleared');
   }
 
-  // Get queue count
   static Future<int> getQueueCount() async {
     final queue = await getQueue();
     return queue.length;
   }
 
-  // Get sync status
   static Future<bool> isSyncing() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_syncStatusKey) ?? false;
   }
 
-  // Set sync status
   static Future<void> setSyncStatus(bool syncing) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_syncStatusKey, syncing);
   }
 
-  // Check if operation for request is already queued
   static Future<bool> isOperationQueued(
     String requestID,
     OperationType type,
@@ -192,7 +319,6 @@ class OfflineQueueService {
     );
   }
 
-  // Get pending operations for a specific request
   static Future<List<QueuedOperation>> getPendingOperationsForRequest(
     String requestID,
   ) async {
@@ -200,7 +326,6 @@ class OfflineQueueService {
     return queue.where((op) => op.data['requestID'] == requestID).toList();
   }
 
-  // Get operations by type
   static Future<List<QueuedOperation>> getOperationsByType(
     OperationType type,
   ) async {
@@ -210,9 +335,8 @@ class OfflineQueueService {
 }
 
 // ====================
-// 2. offline_sync_service.dart
+// offline_sync_service.dart
 // ====================
-
 
 class OfflineSyncService {
   final dynamic attendanceDataSource;
@@ -223,7 +347,6 @@ class OfflineSyncService {
     required this.managerInfoDataSource,
   });
 
-  // Sync all pending operations
   Future<Map<String, dynamic>> syncAllOperations() async {
     debugPrint('=== STARTING OFFLINE SYNC ===');
 
@@ -319,9 +442,10 @@ class OfflineSyncService {
 
     return {
       'success': failedCount == 0,
-      'message': failedCount == 0
-          ? 'All operations synced successfully'
-          : '$syncedCount synced, $failedCount failed',
+      'message':
+          failedCount == 0
+              ? 'All operations synced successfully'
+              : '$syncedCount synced, $failedCount failed',
       'synced': syncedCount,
       'failed': failedCount,
       'failedOperations': failedOperations,
@@ -337,6 +461,7 @@ class OfflineSyncService {
         notes: operation.data['notes'],
         signintype: operation.data['signintype'],
         userLocation: operation.data['userLocation'],
+        isRetry: true, // ✅ Prevent re-queueing
       );
       return true;
     } catch (e) {
@@ -354,6 +479,7 @@ class OfflineSyncService {
         shiftbreak: operation.data['shiftbreak'],
         notes: operation.data['notes'],
         signouttype: operation.data['signouttype'],
+        isRetry: true, // ✅ Prevent re-queueing
       );
       return true;
     } catch (e) {
@@ -378,6 +504,7 @@ class OfflineSyncService {
         managerName: operation.data['managerName'],
         managerDesignation: operation.data['managerDesignation'],
         signatureBytes: signatureBytes,
+        isRetry: true, // ✅ Prevent re-queueing
       );
       return true;
     } catch (e) {
@@ -386,7 +513,6 @@ class OfflineSyncService {
     }
   }
 
-  // Sync specific operation
   Future<bool> syncOperation(String operationId) async {
     final queue = await OfflineQueueService.getQueue();
     final operation = queue.firstWhere(

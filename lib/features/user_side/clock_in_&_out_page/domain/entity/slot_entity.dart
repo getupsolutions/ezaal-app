@@ -1,3 +1,5 @@
+import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/queded_operation.dart';
+
 class SlotEntity {
   final String id; // This is the requestID from organiz_requests table
   final String time;
@@ -21,4 +23,21 @@ class SlotEntity {
     this.managerStatus = false,
     this.userClockinLocation,
   });
+
+  SlotEntity applyLocalState(LocalSlotState? localState) {
+    if (localState == null) return this;
+
+    return SlotEntity(
+      id: id,
+      time: time,
+      role: role,
+      location: location,
+      address: address,
+      // Apply local state OR server state
+      inTimeStatus: localState.hasLocalClockIn || inTimeStatus,
+      outTimeStatus: localState.hasLocalClockOut || outTimeStatus,
+      managerStatus: localState.hasLocalManagerInfo || managerStatus,
+      userClockinLocation: userClockinLocation,
+    );
+  }
 }

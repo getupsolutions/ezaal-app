@@ -3,9 +3,11 @@ import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/S
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_event.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_state.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/clockin_shiftcard.dart';
+import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/queded_operation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:ezaal/core/di/di.dart' as di;
 
 class ClockInOutPage extends StatefulWidget {
   const ClockInOutPage({super.key});
@@ -17,11 +19,106 @@ class ClockInOutPage extends StatefulWidget {
 class _ClockInOutPageState extends State<ClockInOutPage> {
   String get todayDate => DateFormat('dd MMMM yyyy').format(DateTime.now());
   String get todayDay => DateFormat('EEEE').format(DateTime.now());
+  int _pendingOperationsCount = 0;
 
   @override
   void initState() {
     super.initState();
     context.read<SlotBloc>().add(LoadSlots());
+    _loadPendingOperationsCount();
+  }
+
+  Future<void> _loadPendingOperationsCount() async {
+    final count = await OfflineQueueService.getQueueCount();
+    if (mounted) {
+      setState(() {
+        _pendingOperationsCount = count;
+      });
+    }
+  }
+
+  Future<void> _manualSync() async {
+    final isOnline = await OfflineQueueService.isOnline();
+
+    if (!isOnline) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Device is offline. Cannot sync now.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (_pendingOperationsCount == 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ No pending operations to sync'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Show loading dialog
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Syncing offline operations...'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+      );
+    }
+
+    try {
+      final syncService = di.sl<OfflineSyncService>();
+      final result = await syncService.syncAllOperations();
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: result['success'] ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+
+        // Refresh slots and pending count
+        context.read<SlotBloc>().add(LoadSlots());
+        await _loadPendingOperationsCount();
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Sync error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -34,20 +131,30 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
       key: scaffoldKey,
       appBar: CustomAppBar(
         title: 'Clock In & Clock Out',
-        // leadingIcon: Icons.menu,
-        // onLeadingPressed: () => scaffoldKey.currentState?.openDrawer(),
         backgroundColor: const Color(0xff0c2340),
         elevation: 2,
         actions: [
+          if (_pendingOperationsCount > 0)
+            IconButton(
+              icon: Badge(
+                label: Text('$_pendingOperationsCount'),
+                child: const Icon(Icons.cloud_upload, color: Colors.white),
+              ),
+              onPressed: _manualSync,
+              tooltip: 'Sync pending operations',
+            ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () => context.read<SlotBloc>().add(LoadSlots()),
+            onPressed: () async {
+              context.read<SlotBloc>().add(LoadSlots());
+              await _loadPendingOperationsCount();
+            },
           ),
         ],
       ),
-      // drawer: CustomDrawer(),
       body: Column(
         children: [
+          // Date header
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -72,6 +179,36 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
               ],
             ),
           ),
+
+          // Pending operations banner
+          if (_pendingOperationsCount > 0)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.orange.shade100,
+              child: Row(
+                children: [
+                  Icon(Icons.sync, color: Colors.orange.shade700, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '$_pendingOperationsCount operation(s) pending sync',
+                      style: TextStyle(
+                        color: Colors.orange.shade700,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _manualSync,
+                    child: const Text('Sync Now'),
+                  ),
+                ],
+              ),
+            ),
+
+          // Slots list
           Expanded(
             child: BlocBuilder<SlotBloc, SlotState>(
               builder: (context, state) {
@@ -125,6 +262,8 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
                         outTimeStatus: slot.outTimeStatus,
                         screenWidth: screenWidth,
                         screenHeight: screenHeight,
+                        onOperationQueued:
+                            _loadPendingOperationsCount, // ✅ Pass callback
                       );
                     },
                   );
@@ -161,8 +300,10 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
-                          onPressed:
-                              () => context.read<SlotBloc>().add(LoadSlots()),
+                          onPressed: () {
+                            context.read<SlotBloc>().add(LoadSlots());
+                            _loadPendingOperationsCount();
+                          },
                           icon: const Icon(Icons.refresh),
                           label: const Text('Retry'),
                           style: ElevatedButton.styleFrom(
