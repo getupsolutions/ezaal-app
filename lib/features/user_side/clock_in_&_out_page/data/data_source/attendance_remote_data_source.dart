@@ -1,48 +1,110 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/data/models/slot_model.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/queded_operation.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class AttendanceRemoteDataSource {
   final String baseUrl = 'https://app.ezaalhealthcare.com.au/api/v1/public';
 
   Future<List<SlotModel>> getSlots() async {
-    final accessToken = await TokenStorage.getAccessToken();
+    try {
+      // ✅ Check connectivity first
+      final isOnline = await OfflineQueueService.isOnline();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/getslot'),
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-        'Content-Type': 'application/json',
-      },
-    );
+      if (!isOnline) {
+        debugPrint('📴 Device offline - loading cached slots');
+        final cached = await OfflineQueueService.getCachedSlots();
 
-    print("=== GET SLOTS DEBUG ===");
-    print("URL: $baseUrl/getslot");
-    print("Status Code: ${response.statusCode}");
-    print("Response Body: ${response.body}");
-    print("======================");
-
-    if (response.statusCode == 200 || response.statusCode == 404) {
-      try {
-        final jsonData = jsonDecode(response.body);
-        final List<dynamic> data = jsonData['data'] ?? [];
-
-        if (data.isEmpty) {
-          print("⚠️ No slots returned from API");
+        if (cached != null && cached.isNotEmpty) {
+          return cached.map((e) => SlotModel.fromJson(e)).toList();
+        } else {
+          debugPrint('⚠️ No cached slots available');
           return [];
         }
-
-        return data.map((e) => SlotModel.fromJson(e)).toList();
-      } catch (e) {
-        print("Error parsing response: $e");
-        return [];
       }
-    } else {
-      throw Exception(
-        'Failed to load slots: ${response.statusCode} ${response.body}',
-      );
+
+      // ✅ Online - fetch from API
+      final accessToken = await TokenStorage.getAccessToken();
+
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/getslot'),
+            headers: {
+              'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () async {
+              // ✅ On timeout, return cached data
+              debugPrint('⏱️ API timeout - loading cached slots');
+              final cached = await OfflineQueueService.getCachedSlots();
+              if (cached != null) {
+                throw TimeoutException('Using cached data');
+              }
+              throw Exception('Connection timeout and no cache available');
+            },
+          );
+
+      print("=== GET SLOTS DEBUG ===");
+      print("URL: $baseUrl/getslot");
+      print("Status Code: ${response.statusCode}");
+      print("Response Body: ${response.body}");
+      print("======================");
+
+      if (response.statusCode == 200 || response.statusCode == 404) {
+        try {
+          final jsonData = jsonDecode(response.body);
+          final List<dynamic> data = jsonData['data'] ?? [];
+
+          if (data.isEmpty) {
+            print("⚠️ No slots returned from API");
+
+            // ✅ Return cached data if available
+            final cached = await OfflineQueueService.getCachedSlots();
+            if (cached != null && cached.isNotEmpty) {
+              return cached.map((e) => SlotModel.fromJson(e)).toList();
+            }
+
+            return [];
+          }
+
+          // ✅ Cache the fresh data
+          await OfflineQueueService.cacheSlots(data);
+
+          return data.map((e) => SlotModel.fromJson(e)).toList();
+        } catch (e) {
+          print("Error parsing response: $e");
+
+          // ✅ Return cached data on parse error
+          final cached = await OfflineQueueService.getCachedSlots();
+          if (cached != null && cached.isNotEmpty) {
+            return cached.map((e) => SlotModel.fromJson(e)).toList();
+          }
+
+          return [];
+        }
+      } else {
+        throw Exception(
+          'Failed to load slots: ${response.statusCode} ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('❌ Error fetching slots: $e');
+
+      // ✅ Final fallback to cached data
+      final cached = await OfflineQueueService.getCachedSlots();
+      if (cached != null && cached.isNotEmpty) {
+        debugPrint('📦 Using cached slots due to error');
+        return cached.map((e) => SlotModel.fromJson(e)).toList();
+      }
+
+      // Only throw if no cache is available
+      rethrow;
     }
   }
 
@@ -52,7 +114,7 @@ class AttendanceRemoteDataSource {
     String? notes,
     required String signintype,
     String? userLocation,
-    bool isRetry = false, // ✅ Add flag to prevent infinite recursion
+    bool isRetry = false,
   }) async {
     // Check if online (only if not a retry from sync service)
     if (!isRetry) {
@@ -110,7 +172,26 @@ class AttendanceRemoteDataSource {
       print("Body: ${response.body}");
       print("========================");
 
-      if (response.statusCode != 200) {
+      // ✅ FIX: Validate response properly like clock-out does
+      if (response.statusCode == 200 || response.statusCode == 404) {
+        try {
+          final jsonData = jsonDecode(response.body);
+          final message = jsonData['message'] ?? '';
+
+          // Check if the response indicates success
+          if (message.toLowerCase().contains('success') ||
+              message.toLowerCase().contains('logged') ||
+              message.toLowerCase().contains('clocked in')) {
+            print('✅ Clock-in successful');
+            return;
+          } else {
+            throw Exception('Clock in failed: $message');
+          }
+        } catch (e) {
+          if (e is Exception) rethrow;
+          throw Exception('Clock in failed: Unable to parse response');
+        }
+      } else {
         throw Exception(
           'Failed to clock in: ${response.statusCode} ${response.body}',
         );
@@ -142,7 +223,7 @@ class AttendanceRemoteDataSource {
     String? shiftbreak,
     String? notes,
     required String signouttype,
-    bool isRetry = false, // ✅ Add flag to prevent infinite recursion
+    bool isRetry = false,
   }) async {
     // Check if online (only if not a retry from sync service)
     if (!isRetry) {
@@ -208,6 +289,7 @@ class AttendanceRemoteDataSource {
 
           if (message.toLowerCase().contains('success') ||
               message.toLowerCase().contains('logged')) {
+            print('✅ Clock-out successful');
             return;
           } else {
             throw Exception('Clock out failed: $message');

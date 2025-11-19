@@ -51,6 +51,7 @@ class SlotModel extends SlotEntity {
     };
   }
 
+  @override
   SlotModel applyLocalState(LocalSlotState? localState) {
     if (localState == null) return this;
 

@@ -20,12 +20,24 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
   String get todayDate => DateFormat('dd MMMM yyyy').format(DateTime.now());
   String get todayDay => DateFormat('EEEE').format(DateTime.now());
   int _pendingOperationsCount = 0;
+  bool _isOffline = false; // ✅ NEW: Track offline status
 
   @override
   void initState() {
     super.initState();
     context.read<SlotBloc>().add(LoadSlots());
     _loadPendingOperationsCount();
+    _checkConnectivity(); // ✅ NEW
+  }
+
+  // ✅ NEW: Check connectivity status
+  Future<void> _checkConnectivity() async {
+    final isOnline = await OfflineQueueService.isOnline();
+    if (mounted) {
+      setState(() {
+        _isOffline = !isOnline;
+      });
+    }
   }
 
   Future<void> _loadPendingOperationsCount() async {
@@ -106,6 +118,7 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
         // Refresh slots and pending count
         context.read<SlotBloc>().add(LoadSlots());
         await _loadPendingOperationsCount();
+        await _checkConnectivity(); // ✅ NEW
       }
     } catch (e) {
       if (mounted) {
@@ -148,6 +161,7 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
             onPressed: () async {
               context.read<SlotBloc>().add(LoadSlots());
               await _loadPendingOperationsCount();
+              await _checkConnectivity(); // ✅ NEW
             },
           ),
         ],
@@ -179,6 +193,30 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
               ],
             ),
           ),
+
+          // ✅ NEW: Offline mode banner
+          if (_isOffline)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.red.shade100,
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_off, color: Colors.red.shade700, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Offline Mode - Showing cached data',
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Pending operations banner
           if (_pendingOperationsCount > 0)
@@ -236,11 +274,14 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'You have no shifts scheduled for today',
+                            _isOffline
+                                ? 'No cached slots found. Connect to internet to load.'
+                                : 'You have no shifts scheduled for today',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey.shade500,
                             ),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
@@ -262,8 +303,7 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
                         outTimeStatus: slot.outTimeStatus,
                         screenWidth: screenWidth,
                         screenHeight: screenHeight,
-                        onOperationQueued:
-                            _loadPendingOperationsCount, // ✅ Pass callback
+                        onOperationQueued: _loadPendingOperationsCount,
                       );
                     },
                   );
@@ -303,6 +343,7 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
                           onPressed: () {
                             context.read<SlotBloc>().add(LoadSlots());
                             _loadPendingOperationsCount();
+                            _checkConnectivity();
                           },
                           icon: const Icon(Icons.refresh),
                           label: const Text('Retry'),

@@ -23,13 +23,8 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
   ) async {
     debugPrint('=== BLOC: Clock In Requested ===');
     debugPrint('Request ID: ${event.requestID}');
-    debugPrint('In Time: ${event.inTime}');
-    debugPrint('Sign In Type: ${event.signintype}');
-    debugPrint('Notes: ${event.notes}');
-    debugPrint('User Location: ${event.userLocation}');
 
     emit(AttendanceLoading());
-    debugPrint('State emitted: AttendanceLoading');
 
     // ✅ Check if device is online BEFORE operation
     final isOnlineBefore = await OfflineQueueService.isOnline();
@@ -44,23 +39,21 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
         userLocation: event.userLocation,
       );
 
-      debugPrint('Clock in use case completed successfully');
-
-      // ✅ Check if operation was queued by checking the queue
+      // ✅ After operation, check if it was queued
       final wasQueued = await OfflineQueueService.isOperationQueued(
         event.requestID,
         OperationType.clockIn,
       );
 
-      debugPrint('Operation was queued: $wasQueued');
+      debugPrint('✅ Clock in completed (queued: $wasQueued)');
+
+      // ✅ ALWAYS emit success, whether online or offline
       emit(ClockInSuccess(isOfflineQueued: wasQueued));
       debugPrint('State emitted: ClockInSuccess (offline: $wasQueued)');
     } catch (e) {
       debugPrint('❌ Clock in error: $e');
       emit(AttendanceFailure(e.toString()));
-      debugPrint('State emitted: AttendanceFailure');
     }
-    debugPrint('=================================');
   }
 
   Future<void> _onClockOutRequested(
@@ -69,20 +62,13 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
   ) async {
     debugPrint('=== BLOC: Clock Out Requested ===');
     debugPrint('Request ID: ${event.requestID}');
-    debugPrint('Out Time: ${event.outTime}');
-    debugPrint('Sign Out Type: ${event.signouttype}');
-    debugPrint('Shift Break: ${event.shiftbreak}');
-    debugPrint('Notes: ${event.notes}');
 
     emit(AttendanceLoading());
-    debugPrint('State emitted: AttendanceLoading');
 
-    // ✅ Check if device is online BEFORE operation
     final isOnlineBefore = await OfflineQueueService.isOnline();
     debugPrint('Device online before operation: $isOnlineBefore');
 
     try {
-      debugPrint('Calling clock out use case...');
       await clockOutUseCase(
         requestID: event.requestID,
         outTime: event.outTime,
@@ -91,23 +77,20 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
         signouttype: event.signouttype,
       );
 
-      debugPrint('✅ Clock out use case completed successfully');
-
-      // ✅ Check if operation was queued by checking the queue
+      // ✅ After operation, check if it was queued
       final wasQueued = await OfflineQueueService.isOperationQueued(
         event.requestID,
         OperationType.clockOut,
       );
 
-      debugPrint('Operation was queued: $wasQueued');
+      debugPrint('✅ Clock out completed (queued: $wasQueued)');
+
+      // ✅ ALWAYS emit success, whether online or offline
       emit(ClockOutSuccess(isOfflineQueued: wasQueued));
       debugPrint('State emitted: ClockOutSuccess (offline: $wasQueued)');
     } catch (e) {
       debugPrint('❌ Clock out error: $e');
-      debugPrint('Error type: ${e.runtimeType}');
       emit(AttendanceFailure(e.toString()));
-      debugPrint('State emitted: AttendanceFailure');
     }
-    debugPrint('==================================');
   }
 }

@@ -95,6 +95,8 @@ class OfflineQueueService {
   static const String _queueKey = 'offline_operations_queue';
   static const String _syncStatusKey = 'offline_sync_status';
   static const String _localStateKey = 'local_slot_states';
+  static const String _cachedSlotsKey = 'cached_slots_data'; // ✅ NEW
+  static const String _cacheTimestampKey = 'slots_cache_timestamp';
   static const int maxRetries = 3;
 
   static Future<bool> isOnline() async {
@@ -105,6 +107,55 @@ class OfflineQueueService {
       debugPrint('Error checking connectivity: $e');
       return false;
     }
+  }
+
+  static Future<void> cacheSlots(List<dynamic> slots) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(slots);
+      await prefs.setString(_cachedSlotsKey, encoded);
+      await prefs.setString(
+        _cacheTimestampKey,
+        DateTime.now().toIso8601String(),
+      );
+      debugPrint('💾 Cached ${slots.length} slots');
+    } catch (e) {
+      debugPrint('Error caching slots: $e');
+    }
+  }
+
+  // ✅ NEW: Get cached slots
+  static Future<List<Map<String, dynamic>>?> getCachedSlots() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_cachedSlotsKey);
+
+      if (cached == null) {
+        debugPrint('⚠️ No cached slots found');
+        return null;
+      }
+
+      final timestamp = prefs.getString(_cacheTimestampKey);
+      if (timestamp != null) {
+        final cacheTime = DateTime.parse(timestamp);
+        final age = DateTime.now().difference(cacheTime);
+        debugPrint('📦 Using cached slots (${age.inMinutes} minutes old)');
+      }
+
+      final List<dynamic> decoded = jsonDecode(cached);
+      return decoded.map((e) => e as Map<String, dynamic>).toList();
+    } catch (e) {
+      debugPrint('Error loading cached slots: $e');
+      return null;
+    }
+  }
+
+  // ✅ NEW: Clear cached slots
+  static Future<void> clearCachedSlots() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_cachedSlotsKey);
+    await prefs.remove(_cacheTimestampKey);
+    debugPrint('🗑️ Cleared cached slots');
   }
 
   static Future<void> queueOperation(
@@ -313,24 +364,29 @@ class OfflineQueueService {
     String requestID,
     OperationType type,
   ) async {
-    final queue = await getQueue();
-    return queue.any(
-      (op) => op.type == type && op.data['requestID'] == requestID,
-    );
-  }
+    final prefs = await SharedPreferences.getInstance();
+    final queueJson = prefs.getString(_queueKey);
 
-  static Future<List<QueuedOperation>> getPendingOperationsForRequest(
-    String requestID,
-  ) async {
-    final queue = await getQueue();
-    return queue.where((op) => op.data['requestID'] == requestID).toList();
-  }
+    if (queueJson == null) return false;
 
-  static Future<List<QueuedOperation>> getOperationsByType(
-    OperationType type,
-  ) async {
-    final queue = await getQueue();
-    return queue.where((op) => op.type == type).toList();
+    try {
+      final List<dynamic> queue = jsonDecode(queueJson);
+
+      // Check if this specific operation exists in queue
+      final isQueued = queue.any(
+        (item) =>
+            item['type'] == type.toString().split('.').last &&
+            item['data']['requestID'] == requestID,
+      );
+
+      debugPrint(
+        '🔍 Checking queue for $type with requestID $requestID: $isQueued',
+      );
+      return isQueued;
+    } catch (e) {
+      debugPrint('❌ Error checking queued operation: $e');
+      return false;
+    }
   }
 }
 
