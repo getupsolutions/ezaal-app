@@ -1,12 +1,11 @@
-// ==========================================
-// 1. TIMESHEET PAGE
-// ==========================================
 // File: lib/features/user_side/timesheet/presentation/pages/timesheet_page.dart
 
 import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/widgets/custom_appbar.dart';
 import 'package:ezaal/core/widgets/custom_drawer.dart';
+import 'package:ezaal/core/widgets/shimmer.dart';
 import 'package:ezaal/features/user_side/timesheet_page/presentation/widget/date_filter_dialog.dart';
+import 'package:ezaal/features/user_side/timesheet_page/presentation/widget/shimmer_widget.dart';
 import 'package:ezaal/features/user_side/timesheet_page/presentation/widget/timesheet_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -46,6 +45,7 @@ class _TimesheetPageState extends State<TimesheetPage> {
   @override
   Widget build(BuildContext context) {
     final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       key: scaffoldKey,
@@ -69,7 +69,14 @@ class _TimesheetPageState extends State<TimesheetPage> {
       body: BlocBuilder<TimesheetBloc, TimesheetState>(
         builder: (context, state) {
           if (state is TimesheetLoading) {
-            return const Center(child: CircularProgressIndicator());
+            // Show shimmer loading effect
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: 5,
+              itemBuilder: (context, index) {
+                return buildTimesheetCardShimmer(screenWidth);
+              },
+            );
           } else if (state is TimesheetLoaded) {
             if (state.timesheets.isEmpty) {
               return Center(

@@ -7,7 +7,6 @@ class TokenStorage {
   static const String _refreshTokenKey = 'refresh_token';
   static const String _userDataKey = 'user_data';
 
-  // Save tokens
   static Future<void> saveTokens(
     String accessToken,
     String refreshToken,
@@ -17,19 +16,16 @@ class TokenStorage {
     await prefs.setString(_refreshTokenKey, refreshToken);
   }
 
-  // Get access token
   static Future<String?> getAccessToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_accessTokenKey);
   }
 
-  // Get refresh token
   static Future<String?> getRefreshToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_refreshTokenKey);
   }
 
-  // Save user data - now accepts UserEntity
   static Future<void> saveUserData(UserEntity user) async {
     final prefs = await SharedPreferences.getInstance();
     final userJson = jsonEncode({
@@ -39,6 +35,7 @@ class TokenStorage {
         'email': user.email,
         'staffId': user.staffId,
         'photo': user.photoUrl,
+        'role': user.role, // NEW
       },
       'access_token': user.accessToken,
       'refresh_token': user.refreshToken,
@@ -46,7 +43,6 @@ class TokenStorage {
     await prefs.setString(_userDataKey, userJson);
   }
 
-  // Get user data - returns UserEntity
   static Future<UserEntity?> getUserData() async {
     final prefs = await SharedPreferences.getInstance();
     final userJson = prefs.getString(_userDataKey);
@@ -64,6 +60,7 @@ class TokenStorage {
           refreshToken: userData['refresh_token'] ?? '',
           staffId: data['staffId'],
           photoUrl: data['photo'],
+          role: data['role'] ?? 'user', // NEW: defaults to 'user'
         );
       } catch (e) {
         return null;
@@ -72,7 +69,6 @@ class TokenStorage {
     return null;
   }
 
-  // Clear all tokens and user data
   static Future<void> clearTokens() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_accessTokenKey);

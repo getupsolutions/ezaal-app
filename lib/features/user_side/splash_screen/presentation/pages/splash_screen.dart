@@ -2,6 +2,7 @@ import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/screen/dashboard_page.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/screen/admin_dashboardscreen.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/pages/login_screen.dart';
 import 'package:ezaal/features/user_side/splash_screen/presentation/bloc/splash_bloc.dart';
 import 'package:ezaal/features/user_side/splash_screen/presentation/bloc/splash_event.dart';
@@ -20,11 +21,19 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   Future<void> _handleNavigation(BuildContext context) async {
     await Future.delayed(const Duration(seconds: 2)); // splash delay
-    final token = await TokenStorage.getAccessToken();
 
-    if (token != null && token.isNotEmpty) {
-      NavigatorHelper.pushReplacement(DashboardView());
+    final token = await TokenStorage.getAccessToken();
+    final userData = await TokenStorage.getUserData();
+
+    if (token != null && token.isNotEmpty && userData != null) {
+      // Check user role and navigate accordingly
+      if (userData.isAdmin) {
+        NavigatorHelper.pushReplacement(const AdminDashboardPage());
+      } else {
+        NavigatorHelper.pushReplacement(const DashboardView());
+      }
     } else {
+      // No token or user data, navigate to login
       NavigatorHelper.pushReplacement(const LoginScreen());
     }
   }
@@ -35,16 +44,13 @@ class _SplashScreenState extends State<SplashScreen> {
     context.read<SplashBloc>().add(StartSplash());
     _handleNavigation(context);
 
-    // final screenWidth = MediaQuery.of(context).size.width;
-    // final screenHeight = MediaQuery.of(context).size.height;
-
     return Scaffold(
       backgroundColor: kWhite,
       body: BlocListener<SplashBloc, SplashState>(
         listener: (context, state) {
           if (state is SplashCompleted) {
-            //Navigator Helper
-            NavigatorHelper.push(LoginScreen());
+            // Navigation is already handled by _handleNavigation
+            // This listener can be used for additional splash completion logic if needed
           }
         },
         child: LayoutBuilder(

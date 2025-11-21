@@ -4,6 +4,7 @@ import 'package:ezaal/core/widgets/custom_shift_card.dart';
 import 'package:ezaal/features/user_side/available_shift_page/presentation/bloc/shift_bloc.dart';
 import 'package:ezaal/features/user_side/available_shift_page/presentation/bloc/shift_event.dart';
 import 'package:ezaal/features/user_side/available_shift_page/presentation/bloc/shift_state.dart';
+import 'package:ezaal/features/user_side/available_shift_page/presentation/widget/Shiftcard_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -341,7 +342,13 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
         },
         builder: (context, state) {
           if (state is ShiftLoading) {
-            return Center(child: CircularProgressIndicator());
+            // Show shimmer loading effect
+            return ListView.builder(
+              itemCount: 5, // Show 5 shimmer placeholders
+              itemBuilder: (context, index) {
+                return buildShiftCardShimmer(screenWidth, screenHeight);
+              },
+            );
           } else if (state is ShiftLoaded) {
             // Extract unique organization names and update the list
             final organizations =

@@ -6,8 +6,17 @@ class LoginUseCase {
 
   LoginUseCase(this.repository);
 
-  Future<UserEntity> call(String email, String password) async {
-    return await repository.login(email, password);
+  Future<UserEntity> call(
+    String identifier,
+    String password, {
+    bool isAdmin = false,
+  }) async {
+    return await repository.login(identifier, password, isAdmin: isAdmin);
+  }
+
+  // Auto-detect login: Try admin first, then user
+  Future<UserEntity> autoLogin(String identifier, String password) async {
+    return await repository.autoLogin(identifier, password);
   }
 
   // Fetch current user from access token

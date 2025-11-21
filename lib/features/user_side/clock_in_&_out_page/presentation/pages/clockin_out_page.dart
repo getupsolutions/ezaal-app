@@ -1,9 +1,11 @@
 import 'package:ezaal/core/widgets/custom_appbar.dart';
+import 'package:ezaal/core/widgets/shimmer.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_event.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_state.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/clockin_shiftcard.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/queded_operation.dart';
+import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/shimmer_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -20,18 +22,17 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
   String get todayDate => DateFormat('dd MMMM yyyy').format(DateTime.now());
   String get todayDay => DateFormat('EEEE').format(DateTime.now());
   int _pendingOperationsCount = 0;
-  bool _isOffline = false; // ✅ NEW: Track offline status
+  bool _isOffline = false;
 
   @override
   void initState() {
     super.initState();
     context.read<SlotBloc>().add(LoadSlots());
     _loadPendingOperationsCount();
-    _checkConnectivity(); // ✅ NEW
+    checkConnectivity();
   }
 
-  // ✅ NEW: Check connectivity status
-  Future<void> _checkConnectivity() async {
+  Future<void> checkConnectivity() async {
     final isOnline = await OfflineQueueService.isOnline();
     if (mounted) {
       setState(() {
@@ -76,7 +77,6 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
       return;
     }
 
-    // Show loading dialog
     if (mounted) {
       showDialog(
         context: context,
@@ -105,7 +105,7 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
       final result = await syncService.syncAllOperations();
 
       if (mounted) {
-        Navigator.pop(context); // Close loading dialog
+        Navigator.pop(context);
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -115,14 +115,13 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
           ),
         );
 
-        // Refresh slots and pending count
         context.read<SlotBloc>().add(LoadSlots());
         await _loadPendingOperationsCount();
-        await _checkConnectivity(); // ✅ NEW
+        await checkConnectivity();
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Close loading dialog
+        Navigator.pop(context);
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -133,6 +132,8 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
       }
     }
   }
+
+  // Shimmer Loading Widget for Clock In/Out Cards
 
   @override
   Widget build(BuildContext context) {
@@ -161,7 +162,7 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
             onPressed: () async {
               context.read<SlotBloc>().add(LoadSlots());
               await _loadPendingOperationsCount();
-              await _checkConnectivity(); // ✅ NEW
+              await checkConnectivity();
             },
           ),
         ],
@@ -194,7 +195,7 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
             ),
           ),
 
-          // ✅ NEW: Offline mode banner
+          // Offline mode banner
           if (_isOffline)
             Container(
               width: double.infinity,
@@ -251,7 +252,13 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
             child: BlocBuilder<SlotBloc, SlotState>(
               builder: (context, state) {
                 if (state is SlotLoading) {
-                  return const Center(child: CircularProgressIndicator());
+                  // Show shimmer loading effect
+                  return ListView.builder(
+                    itemCount: 4,
+                    itemBuilder: (context, index) {
+                      return buildSlotCardShimmer(screenWidth);
+                    },
+                  );
                 } else if (state is SlotLoaded) {
                   if (state.slots.isEmpty) {
                     return Center(
@@ -343,7 +350,7 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
                           onPressed: () {
                             context.read<SlotBloc>().add(LoadSlots());
                             _loadPendingOperationsCount();
-                            _checkConnectivity();
+                            checkConnectivity();
                           },
                           icon: const Icon(Icons.refresh),
                           label: const Text('Retry'),

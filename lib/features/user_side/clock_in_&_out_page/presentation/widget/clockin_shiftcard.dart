@@ -63,8 +63,7 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
   void didUpdateWidget(ClockinShiftCard oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // ✅ FIX: Always sync with API data when it becomes true
-    // This allows API updates to override local optimistic updates
+    // ✅ Always sync with API data when it becomes true
     if (widget.inTimeStatus != oldWidget.inTimeStatus) {
       _localInTimeStatus = widget.inTimeStatus;
     }
@@ -109,7 +108,7 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
             ),
           );
 
-          // ✅ Refresh slots immediately (removed delay)
+          // ✅ Refresh slots immediately
           if (context.mounted) {
             context.read<SlotBloc>().add(LoadSlots());
           }
@@ -134,20 +133,20 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
             ),
           );
 
-          // ✅ Refresh slots immediately (removed delay)
+          // ✅ Refresh slots immediately
           if (context.mounted) {
             context.read<SlotBloc>().add(LoadSlots());
           }
         }
       },
       builder: (context, state) {
-        // ✅ Use local state instead of widget props for UI rendering
+        // ✅ NEW WORKFLOW: Clock In → Manager Info → Clock Out
         final bool showClockIn = !_localInTimeStatus;
-        final bool showClockOut = _localInTimeStatus && !_localOutTimeStatus;
-        final bool showManagerInfo =
-            _localInTimeStatus && _localOutTimeStatus && !_localManagerStatus;
+        final bool showManagerInfo = _localInTimeStatus && !_localManagerStatus;
+        final bool showClockOut =
+            _localInTimeStatus && _localManagerStatus && !_localOutTimeStatus;
         final bool isCompleted =
-            _localInTimeStatus && _localOutTimeStatus && _localManagerStatus;
+            _localInTimeStatus && _localManagerStatus && _localOutTimeStatus;
         final bool isLoading = state is AttendanceLoading;
 
         return Padding(
@@ -268,7 +267,7 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
                             ],
                           ),
                         ),
-                      ] else if (showClockOut || showManagerInfo) ...[
+                      ] else if (showManagerInfo || showClockOut) ...[
                         SizedBox(height: widget.screenHeight * 0.008),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -306,11 +305,11 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
                 const SizedBox(width: 10),
                 SizedBox(
                   height: 40,
-                  width: (showManagerInfo || isCompleted) ? 110 : 100,
+                  width: showManagerInfo ? 110 : 100,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
-                          isCompleted || showManagerInfo
+                          showManagerInfo
                               ? Colors.blue
                               : (showClockOut ? Colors.red : primaryColor),
                       shape: RoundedRectangleBorder(
@@ -319,10 +318,10 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
                       elevation: 2,
                     ),
                     onPressed:
-                        isLoading
+                        isLoading || isCompleted
                             ? null
                             : () async {
-                              if (showManagerInfo || isCompleted) {
+                              if (showManagerInfo) {
                                 _showManagerInfoDialog(context);
                               } else if (showClockOut) {
                                 await _handleClockOut(context);
@@ -341,7 +340,7 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
                               ),
                             )
                             : Text(
-                              (showManagerInfo || isCompleted)
+                              showManagerInfo
                                   ? 'Manager Info'
                                   : (showClockOut ? 'Clock Out' : 'Clock In'),
                               style: const TextStyle(
@@ -798,16 +797,6 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                const Divider(),
-                const SizedBox(height: 8),
-                const Text(
-                  'Your shift has been completed successfully.',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
               ],
             ),
           ),
@@ -816,7 +805,6 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
-            // Replace the BlocConsumer inside _showManagerInfoDialog method with this:
             BlocConsumer<ManagerInfoBloc, ManagerInfoState>(
               listener: (context, state) {
                 if (state is ManagerInfoSuccess) {
@@ -836,8 +824,7 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
 
                   widget.onOperationQueued?.call();
 
-                  // ✅ FIX: Update local state in the parent widget's context
-                  // This ensures the entire ClockinShiftCard rebuilds
+                  // ✅ Update local state in the parent widget's context
                   if (mounted) {
                     setState(() {
                       _localManagerStatus = true;

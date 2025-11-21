@@ -8,8 +8,17 @@ class AuthRepositoryImpl implements AuthRepository {
   AuthRepositoryImpl(this.remoteDataSource);
 
   @override
-  Future<UserEntity> login(String email, String password) {
-    return remoteDataSource.login(email, password);
+  Future<UserEntity> login(
+    String identifier,
+    String password, {
+    bool isAdmin = false,
+  }) {
+    return remoteDataSource.login(identifier, password, isAdmin: isAdmin);
+  }
+
+  @override
+  Future<UserEntity> autoLogin(String identifier, String password) async {
+    return await remoteDataSource.autoLogin(identifier, password);
   }
 
   @override

@@ -9,6 +9,7 @@ class UserModel extends UserEntity {
     required super.refreshToken,
     super.staffId,
     super.photoUrl,
+    required super.role,
   });
 
   // Create UserModel from UserEntity
@@ -21,6 +22,7 @@ class UserModel extends UserEntity {
       refreshToken: entity.refreshToken,
       staffId: entity.staffId,
       photoUrl: entity.photoUrl,
+      role: entity.role,
     );
   }
 
@@ -34,6 +36,7 @@ class UserModel extends UserEntity {
       refreshToken: json['refresh_token'] ?? '',
       staffId: data['staffId'] ?? data['typeId'],
       photoUrl: data['photo'],
+      role: data['role'] ?? 'user',
     );
   }
 
@@ -45,6 +48,7 @@ class UserModel extends UserEntity {
         'email': email,
         'staffId': staffId,
         'photo': photoUrl,
+        'role' : role,
       },
       'access_token': accessToken,
       'refresh_token': refreshToken,

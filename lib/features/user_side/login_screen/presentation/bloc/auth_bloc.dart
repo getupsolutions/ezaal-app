@@ -28,11 +28,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             accessToken.isNotEmpty) {
           try {
             final user = await loginUseCase.getUserFromToken(accessToken);
-
-            // Convert UserEntity to UserModel before saving
             final userModel = UserModel.fromEntity(user);
             await TokenStorage.saveUserData(userModel);
-
             emit(AuthSuccess(user));
           } catch (e) {
             await TokenStorage.clearTokens();
@@ -49,11 +46,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<LoginRequested>((event, emit) async {
       emit(AuthLoading());
       try {
-        final user = await loginUseCase(event.email, event.password);
+        // Auto-detect: Try admin login first, then user login
+        final user = await loginUseCase.autoLogin(
+          event.identifier,
+          event.password,
+        );
 
         await TokenStorage.saveTokens(user.accessToken, user.refreshToken);
-
-        // Convert UserEntity to UserModel before saving
         final userModel = UserModel.fromEntity(user);
         await TokenStorage.saveUserData(userModel);
 

@@ -5,33 +5,60 @@ import 'package:http/http.dart' as http;
 class AuthRemoteDataSource {
   final String baseUrl = 'https://app.ezaalhealthcare.com.au/api/v1/public';
 
-  Future<UserModel> login(String email, String password) async {
+  // Auto-detect login: Try admin first, then user
+  Future<UserModel> autoLogin(String identifier, String password) async {
+    try {
+      // Try admin login first
+      return await login(identifier, password, isAdmin: true);
+    } catch (adminError) {
+      print('Admin login failed, trying user login...');
+      // If admin login fails, try user login
+      try {
+        return await login(identifier, password, isAdmin: false);
+      } catch (userError) {
+        // Both failed, throw the most relevant error
+        throw Exception(
+          'Invalid credentials. Please check your email/username and password.',
+        );
+      }
+    }
+  }
+
+  Future<UserModel> login(
+    String identifier,
+    String password, {
+    bool isAdmin = false,
+  }) async {
     try {
       print('=== LOGIN DEBUG ===');
-      print('URL: $baseUrl/login');
-      print('Email: $email');
+      final endpoint = isAdmin ? '$baseUrl/admin-login' : '$baseUrl/login';
+      print('URL: $endpoint');
+      print('Identifier: $identifier');
+      print('Is Admin: $isAdmin');
 
-      // Create a client that doesn't follow redirects automatically
       final client = http.Client();
-
-      final request = http.Request('POST', Uri.parse('$baseUrl/login'));
+      final request = http.Request('POST', Uri.parse(endpoint));
 
       request.headers.addAll({
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       });
 
-      request.body = jsonEncode({"email": email, "password": password});
+      // Admin uses username, User uses email
+      final requestBody =
+          isAdmin
+              ? {"username": identifier, "password": password}
+              : {"email": identifier, "password": password};
+
+      request.body = jsonEncode(requestBody);
 
       final streamedResponse = await client.send(request);
       final response = await http.Response.fromStream(streamedResponse);
 
       print('Status Code: ${response.statusCode}');
-      print('Response Headers: ${response.headers}');
       print('Response Body: ${response.body}');
       print('===================');
 
-      // Handle redirect manually
       if (response.statusCode == 302 || response.statusCode == 301) {
         final redirectUrl = response.headers['location'];
         print('Redirect detected to: $redirectUrl');
@@ -42,16 +69,36 @@ class AuthRemoteDataSource {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['message'].toString().contains('Successfully')) {
+
+        // Check for successful login message
+        final message = data['message']?.toString().toLowerCase() ?? '';
+        if (message.contains('successfully') || message.contains('logged in')) {
+          // Ensure the role is set correctly based on response
+          if (data['data'] != null) {
+            // Use the role from API response, or determine from user_type
+            final userType = data['user_type']?.toString().toLowerCase();
+            final apiRole = data['data']['role']?.toString().toLowerCase();
+
+            // Set role based on API response or user_type
+            if (userType == 'admin' || apiRole?.contains('admin') == true) {
+              data['data']['role'] = 'admin';
+            } else {
+              data['data']['role'] = data['data']['role'] ?? 'user';
+            }
+          }
           return UserModel.fromJson(data);
         } else {
-          throw Exception(data['message']);
+          throw Exception(data['message'] ?? 'Login failed');
         }
       } else if (response.statusCode == 422) {
         final data = jsonDecode(response.body);
         throw Exception(data['message'] ?? 'Validation error');
       } else if (response.statusCode == 401) {
-        throw Exception('Invalid email or password');
+        throw Exception(
+          isAdmin
+              ? 'Invalid username or password'
+              : 'Invalid email or password',
+        );
       } else {
         throw Exception('Failed to login. Status: ${response.statusCode}');
       }

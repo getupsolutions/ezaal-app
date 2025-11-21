@@ -1,7 +1,9 @@
 // presentation/pages/roster_tab_view.dart
 import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/widgets/custom_appbar.dart';
+import 'package:ezaal/core/widgets/shimmer.dart';
 import 'package:ezaal/features/user_side/roster_page/presentation/widget/roster_scedule_card.dart';
+import 'package:ezaal/features/user_side/roster_page/presentation/widget/shimmer_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -31,10 +33,8 @@ class _RosterTabViewState extends State<RosterTabView>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Load rosters only once after dependencies are ready
     if (!_hasLoadedInitialData) {
       _hasLoadedInitialData = true;
-      // Use Future.microtask to ensure the bloc is fully initialized
       Future.microtask(() {
         if (mounted) {
           context.read<RosterBloc>().add(LoadRosters());
@@ -49,15 +49,18 @@ class _RosterTabViewState extends State<RosterTabView>
     super.dispose();
   }
 
-  // Helper method to check if a date has roster data
   bool _hasRosterOnDate(DateTime day, List<dynamic> allRosters) {
     final dateString =
         "${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}";
     return allRosters.any((roster) => roster.date == dateString);
   }
 
+  // Shimmer Loading Widget for Roster Cards
+
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Scaffold(
       appBar: CustomAppBar(
         title: 'My Roster',
@@ -88,7 +91,48 @@ class _RosterTabViewState extends State<RosterTabView>
       body: BlocBuilder<RosterBloc, RosterState>(
         builder: (context, state) {
           if (state is RosterLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return TabBarView(
+              controller: _tabController,
+              children: [
+                // Calendar Tab Shimmer
+                SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      // Calendar Shimmer
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: UniversalShimmer(
+                          height: 350,
+                          borderRadius: BorderRadius.circular(10),
+                          baseColor: Colors.grey[300]!,
+                          highlightColor: Colors.grey[100]!,
+                        ),
+                      ),
+                      // List Shimmer
+                      ListView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        shrinkWrap: true,
+                        itemCount: 3,
+                        itemBuilder: (context, index) {
+                          return buildRosterCardShimmer(screenWidth);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                // List View Tab Shimmer
+                ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  itemCount: 5,
+                  itemBuilder: (context, index) {
+                    return buildRosterCardShimmer(screenWidth);
+                  },
+                ),
+              ],
+            );
           }
 
           if (state is RosterError) {
@@ -160,12 +204,9 @@ class _RosterTabViewState extends State<RosterTabView>
                               FilterRostersByDate(dateString),
                             );
                           },
-                          // ✅ Add event loader to show dots on dates with data
                           eventLoader: (day) {
                             if (_hasRosterOnDate(day, allRosters)) {
-                              return [
-                                'event',
-                              ]; // Return non-empty list to show marker
+                              return ['event'];
                             }
                             return [];
                           },
@@ -186,7 +227,6 @@ class _RosterTabViewState extends State<RosterTabView>
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                             ),
-                            // ✅ Style for the marker dot
                             markerDecoration: BoxDecoration(
                               color: Colors.orange,
                               shape: BoxShape.circle,
@@ -204,7 +244,6 @@ class _RosterTabViewState extends State<RosterTabView>
                         ),
                       ),
                     ),
-                    // Show roster list only if data exists
                     if (hasData)
                       ListView.builder(
                         physics: const NeverScrollableScrollPhysics(),
@@ -250,23 +289,6 @@ class _RosterTabViewState extends State<RosterTabView>
                               ),
                               textAlign: TextAlign.center,
                             ),
-                            // const SizedBox(height: 16),
-                            // ElevatedButton.icon(
-                            //   onPressed: () {
-                            //     context.read<RosterBloc>().add(ResetFilter());
-                            //     setState(() {
-                            //       _selectedDay = null;
-                            //     });
-                            //   },
-                            //   icon: const Icon(Icons.view_list),
-                            //   label: const Text('Show All Data'),
-                            //   style: ElevatedButton.styleFrom(
-                            //     padding: const EdgeInsets.symmetric(
-                            //       horizontal: 24,
-                            //       vertical: 12,
-                            //     ),
-                            //   ),
-                            // ),
                           ],
                         ),
                       ),
@@ -277,48 +299,22 @@ class _RosterTabViewState extends State<RosterTabView>
               hasData
                   ? Column(
                     children: [
-                      // ✅ Show All Data button at the top of list view
-                      if (selectedRosters.length < allRosters.length)
-                        // Padding(
-                        //   padding: const EdgeInsets.all(16),
-                        //   child: SizedBox(
-                        //     width: double.infinity,
-                        //     child: ElevatedButton.icon(
-                        //       onPressed: () {
-                        //         context.read<RosterBloc>().add(ResetFilter());
-                        //         setState(() {
-                        //           _selectedDay = null;
-                        //         });
-                        //       },
-                        //       icon: const Icon(Icons.view_list),
-                        //       label: Text(
-                        //         'Show All Data (${allRosters.length} total)',
-                        //       ),
-                        //       style: ElevatedButton.styleFrom(
-                        //         padding: const EdgeInsets.symmetric(
-                        //           horizontal: 24,
-                        //           vertical: 12,
-                        //         ),
-                        //       ),
-                        //     ),
-                        //   ),
-                        // ),
-                        Expanded(
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: selectedRosters.length,
-                            itemBuilder: (context, index) {
-                              print("Count is ${selectedRosters.length}");
-                              final roster = selectedRosters[index];
-                              return RosterCustomList(
-                                date: roster.date,
-                                day: roster.day,
-                                time: roster.time,
-                                location: roster.location,
-                              );
-                            },
-                          ),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: selectedRosters.length,
+                          itemBuilder: (context, index) {
+                            print("Count is ${selectedRosters.length}");
+                            final roster = selectedRosters[index];
+                            return RosterCustomList(
+                              date: roster.date,
+                              day: roster.day,
+                              time: roster.time,
+                              location: roster.location,
+                            );
+                          },
                         ),
+                      ),
                     ],
                   )
                   : Center(
@@ -348,23 +344,6 @@ class _RosterTabViewState extends State<RosterTabView>
                             color: Colors.grey[600],
                           ),
                         ),
-                        // const SizedBox(height: 16),
-                        // ElevatedButton.icon(
-                        //   onPressed: () {
-                        //     context.read<RosterBloc>().add(ResetFilter());
-                        //     setState(() {
-                        //       _selectedDay = null;
-                        //     });
-                        //   },
-                        //   icon: const Icon(Icons.view_list),
-                        //   label: const Text('Show All Data'),
-                        //   style: ElevatedButton.styleFrom(
-                        //     padding: const EdgeInsets.symmetric(
-                        //       horizontal: 24,
-                        //       vertical: 12,
-                        //     ),
-                        //   ),
-                        // ),
                       ],
                     ),
                   ),

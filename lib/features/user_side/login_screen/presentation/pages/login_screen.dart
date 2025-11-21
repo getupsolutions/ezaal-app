@@ -3,6 +3,7 @@ import 'package:ezaal/core/widgets/custom_buttons.dart';
 import 'package:ezaal/core/widgets/custom_textformfield.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/screen/dashboard_page.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/screen/admin_dashboardscreen.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_bloc.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_event.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_state.dart';
@@ -17,7 +18,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController emailController = TextEditingController();
+  final TextEditingController identifierController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -25,13 +26,13 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     double screenWidth = MediaQuery.of(context).size.width;
     double screenHeight = MediaQuery.of(context).size.height;
+
     return BlocConsumer<AuthBloc, AuthState>(
       builder: (context, state) {
         return Scaffold(
           backgroundColor: kWhite,
           body: Center(
             child: SingleChildScrollView(
-              // Allow scrolling on small devices
               padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.08),
               child: Form(
                 key: _formKey,
@@ -40,14 +41,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     Image.asset(
                       'assets/Logo/Media.jpeg',
-                      height: screenHeight * 0.10, // Responsive logo size
+                      height: screenHeight * 0.10,
                     ),
                     SizedBox(height: screenHeight * 0.07),
 
                     Text(
                       'Welcome Back',
                       style: TextStyle(
-                        fontSize: screenHeight * 0.030, // Responsive font size
+                        fontSize: screenHeight * 0.030,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -64,25 +65,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     SizedBox(height: screenHeight * 0.05),
 
+                    // Single identifier field (Email/Username)
                     CustomTextFormField(
                       autovalidateMode: AutovalidateMode.onUserInteraction,
-                      controller: emailController,
-                      labelText: 'Email Address',
+                      controller: identifierController,
+                      labelText: 'Email or Username',
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Email cannot be empty';
-                        }
-                        final emailRegex = RegExp(
-                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                        );
-                        if (!emailRegex.hasMatch(value)) {
-                          return 'Enter a valid email';
+                          return 'Email or Username cannot be empty';
                         }
                         return null;
                       },
                     ),
 
-                    SizedBox(height: screenHeight * 0.015),
+                    SizedBox(height: screenHeight * 0.02),
 
                     CustomTextFormField(
                       autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -108,10 +104,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           label: 'Login',
                           onPressed: () {
                             if (_formKey.currentState!.validate()) {
-                              // Only trigger login if form is valid
                               context.read<AuthBloc>().add(
                                 LoginRequested(
-                                  emailController.text.trim(),
+                                  identifierController.text.trim(),
                                   passwordController.text.trim(),
                                 ),
                               );
@@ -128,7 +123,12 @@ class _LoginScreenState extends State<LoginScreen> {
       },
       listener: (context, state) {
         if (state is AuthSuccess) {
-          NavigatorHelper.pushReplacement(DashboardView());
+          // Automatically route based on user role
+          if (state.user.isAdmin) {
+            NavigatorHelper.pushReplacement(const AdminDashboardPage());
+          } else {
+            NavigatorHelper.pushReplacement(const DashboardView());
+          }
         } else if (state is AuthFailure) {
           ScaffoldMessenger.of(
             context,
@@ -136,5 +136,12 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       },
     );
+  }
+
+  @override
+  void dispose() {
+    identifierController.dispose();
+    passwordController.dispose();
+    super.dispose();
   }
 }
