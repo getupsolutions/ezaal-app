@@ -7,6 +7,7 @@ class ShiftCardWidget extends StatelessWidget {
     required this.screenHeight,
     required this.screenWidth,
     required this.time,
+    required this.date,
     required this.agencyName,
     this.duration,
     required this.notes,
@@ -18,6 +19,7 @@ class ShiftCardWidget extends StatelessWidget {
   final double screenHeight;
   final double screenWidth;
   final String time;
+  final String date;
   final String agencyName;
   final String? duration;
   final String notes;
@@ -45,6 +47,21 @@ class ShiftCardWidget extends StatelessWidget {
               fontWeight: FontWeight.bold,
               fontSize: screenHeight * 0.02,
             ),
+          ),
+          SizedBox(height: screenHeight * 0.005),
+          Row(
+            children: [
+              Icon(
+                Icons.calendar_today,
+                size: screenHeight * 0.02,
+                color: kBlack,
+              ),
+              SizedBox(width: 8),
+              Text(
+                date,
+                style: TextStyle(fontWeight: FontWeight.w600, color: kBlack),
+              ),
+            ],
           ),
           SizedBox(height: screenHeight * 0.005),
           Row(

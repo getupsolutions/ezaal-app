@@ -9,6 +9,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final double elevation;
   final Color? backgroundColor;
   final PreferredSizeWidget? bottom;
+  final bool automaticallyImplyLeading;
 
   const CustomAppBar({
     super.key,
@@ -19,6 +20,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.elevation = 4.0,
     this.bottom,
     this.backgroundColor,
+    this.automaticallyImplyLeading = true,
   });
 
   @override
@@ -33,6 +35,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     double screenHeight = MediaQuery.of(context).size.height;
 
     return AppBar(
+      automaticallyImplyLeading: automaticallyImplyLeading,
       backgroundColor: backgroundColor,
       elevation: elevation,
       centerTitle: true,

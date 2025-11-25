@@ -459,6 +459,7 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
                       return Padding(
                         padding: const EdgeInsets.all(10.0),
                         child: ShiftCardWidget(
+                          date: shift.date,
                           screenHeight: screenHeight,
                           screenWidth: screenWidth,
                           duration: shift.duration,
@@ -466,6 +467,7 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
                           agencyName: shift.agencyName,
                           notes: shift.notes,
                           location: shift.location,
+
                           onButtonPressed: () {
                             context.read<ShiftBloc>().add(ClaimShift(shift.id));
                           },

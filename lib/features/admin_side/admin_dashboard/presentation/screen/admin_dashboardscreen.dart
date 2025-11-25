@@ -1,152 +1,308 @@
+import 'dart:async';
 import 'package:ezaal/core/constant/constant.dart';
-import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/screen/shift_managmentscreen.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/widget/admin_drawer.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/widget/dashboard_tile.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/widget/date_time.dart';
+import 'package:ezaal/features/user_side/dashboard/presentation/widget/dashboard_widgets.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_bloc.dart';
-import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_event.dart';
-import 'package:ezaal/features/user_side/login_screen/presentation/pages/login_screen.dart';
+import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-class AdminDashboardPage extends StatelessWidget {
+class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin Dashboard'),
-        backgroundColor: primaryColor,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder:
-                    (context) => AlertDialog(
-                      title: const Text('Logout'),
-                      content: const Text('Are you sure you want to logout?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
-                        ),
-                        ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                          ),
-                          child: const Text(
-                            'Logout',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ],
-                    ),
-              );
+  State<AdminDashboardPage> createState() => _AdminDashboardPageState();
+}
 
-              if (confirm == true && context.mounted) {
-                context.read<AuthBloc>().add(LogoutRequested());
-                NavigatorHelper.pushReplacement(const LoginScreen());
+class _AdminDashboardPageState extends State<AdminDashboardPage> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  String greeting = "";
+  late Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+
+    updateGreeting();
+    updateDateTime();
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {
+          updateDateTime();
+          updateGreeting();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  // ---------------------------
+  // TIME-BASED GREETINGS
+  // ---------------------------
+  void updateGreeting() {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 5 && hour < 12) {
+      greeting = "Good Morning";
+    } else if (hour >= 12 && hour < 17) {
+      greeting = "Good Afternoon";
+    } else if (hour >= 17 && hour < 21) {
+      greeting = "Good Evening";
+    } else {
+      greeting = "Good Night";
+    }
+  }
+
+  @override
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final height = MediaQuery.of(context).size.height;
+
+    // Responsive spacing
+    double smallGap = height * 0.01;
+    double mediumGap = height * 0.02;
+    double largeGap = height * 0.03;
+
+    final bool isSmall = width < 600;
+    final bool isMedium = width >= 600 && width < 1100;
+
+    double titleSize =
+        isSmall
+            ? 22
+            : isMedium
+            ? 26
+            : 30;
+    double dateSize =
+        isSmall
+            ? 14
+            : isMedium
+            ? 16
+            : 18;
+    double userNameSize =
+        isSmall
+            ? 16
+            : isMedium
+            ? 18
+            : 20;
+
+    return Scaffold(
+      key: _scaffoldKey,
+      drawer: const AdminDrawer(),
+
+      appBar: AppBar(
+        centerTitle: true,
+        backgroundColor: primaryDarK,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.menu, color: kWhite),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
+        title: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              buildEzaalLogo(isSmallScreen: isSmall),
+              SizedBox(width: smallGap),
+              Text(
+                "EHC Hub",
+                style: TextStyle(
+                  color: kWhite,
+                  fontSize:
+                      isSmall
+                          ? 16
+                          : isMedium
+                          ? 18
+                          : 22,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          BlocBuilder<AuthBloc, AuthState>(
+            builder: (context, state) {
+              String userName = "User";
+              String? photo;
+              if (state is AuthSuccess) {
+                userName = state.user.name.trim();
+                photo = state.user.photoUrl;
               }
+              return Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius:
+                          isSmall
+                              ? 16
+                              : isMedium
+                              ? 18
+                              : 22,
+                      backgroundImage:
+                          (photo != null && photo.isNotEmpty)
+                              ? NetworkImage(photo)
+                              : null,
+                      child:
+                          (photo == null || photo.isEmpty)
+                              ? const Icon(Icons.person, color: Colors.white)
+                              : null,
+                    ),
+                    if (!isSmall) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        userName,
+                        style: TextStyle(
+                          color: kWhite,
+                          fontWeight: FontWeight.w600,
+                          fontSize: userNameSize,
+                        ),
+                      ),
+                      Icon(Icons.keyboard_arrow_down_rounded, color: kWhite),
+                    ],
+                  ],
+                ),
+              );
             },
           ),
         ],
       ),
-      body: FutureBuilder<String?>(
-        future: TokenStorage.getUserData().then((user) => user?.name),
-        builder: (context, snapshot) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.admin_panel_settings,
-                  size: 100,
-                  color: primaryColor,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Welcome, ${snapshot.data ?? "Admin"}!',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Admin Portal',
-                  style: TextStyle(fontSize: 18, color: Colors.grey),
-                ),
-                const SizedBox(height: 40),
-                // Add your admin-specific widgets here
-                Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: GridView.count(
-                    shrinkWrap: true,
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 20,
-                    mainAxisSpacing: 20,
-                    children: [
-                      _buildAdminCard(
-                        icon: Icons.people,
-                        title: 'Manage Users',
-                        onTap: () {
-                          // Navigate to manage users
-                        },
-                      ),
-                      _buildAdminCard(
-                        icon: Icons.schedule,
-                        title: 'Manage Shifts',
-                        onTap: () {
-                          // Navigate to manage shifts
-                        },
-                      ),
-                      _buildAdminCard(
-                        icon: Icons.analytics,
-                        title: 'Reports',
-                        onTap: () {
-                          // Navigate to reports
-                        },
-                      ),
-                      _buildAdminCard(
-                        icon: Icons.settings,
-                        title: 'Settings',
-                        onTap: () {
-                          // Navigate to settings
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
 
-  Widget _buildAdminCard({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(15),
+      body: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal:
+              isSmall
+                  ? 16
+                  : isMedium
+                  ? 24
+                  : 32,
+          vertical:
+              isSmall
+                  ? 16
+                  : isMedium
+                  ? 24
+                  : 32,
+        ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 50, color: primaryColor),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            BlocBuilder<AuthBloc, AuthState>(
+              builder: (context, state) {
+                String userName = "User";
+                if (state is AuthSuccess) {
+                  userName = state.user.name.trim();
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      greeting,
+                      style: TextStyle(
+                        fontSize: titleSize,
+                        fontWeight: FontWeight.w500,
+                        color: primaryDarK,
+                      ),
+                    ),
+
+                    Text(
+                      userName,
+                      style: TextStyle(
+                        fontSize: titleSize - 4,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+
+                    SizedBox(height: mediumGap),
+
+                    Row(
+                      children: [
+                        // DATE
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_month, size: 20),
+                              SizedBox(width: smallGap),
+                              Text(
+                                formattedDate,
+                                style: TextStyle(fontSize: dateSize),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        SizedBox(width: mediumGap),
+
+                        // TIME
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.access_time,
+                                size: 20,
+                                color: Colors.red,
+                              ),
+                              SizedBox(width: smallGap),
+                              Text(
+                                formattedTime,
+                                style: TextStyle(fontSize: dateSize),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+
+            SizedBox(height: largeGap),
+
+            const Text(
+              "Dashboard",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+
+            SizedBox(height: smallGap),
+            Divider(color: kBlack),
+            SizedBox(height: largeGap),
+
+            DashboardTile(
+              color: primaryDarK,
+              icon: Icons.bar_chart_outlined,
+              title: "Shift management",
+              actionText: "Click Here",
+              onTap: () => NavigatorHelper.push(ShiftManagmentscreen()),
             ),
           ],
         ),
