@@ -3,6 +3,7 @@ class ShiftEntity {
   final String time;
   final String agencyName;
   final String duration;
+  final String date;
   final String notes;
   final String location;
 
@@ -13,5 +14,6 @@ class ShiftEntity {
     required this.duration,
     required this.notes,
     required this.location,
+    required this.date
   });
 }
