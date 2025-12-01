@@ -49,7 +49,5 @@
     <!-- ADD THESE LOCATION PERMISSION KEYS -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We need your location to verify your clock-in position for shift attendance</string>
-    <key>NSLocationAlwaysUsageDescription</key>
-	<string>We need your location to verify your clock-in position for shift attendance</string>
 </dict>
 </plist>
