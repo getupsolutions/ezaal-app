@@ -1,6 +1,9 @@
 import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/widgets/custom_appbar.dart';
+import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/shift_item.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/screen/add_shift_screen.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/widget/completed_shift_view.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/widget/shift_filter_dialog.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/widget/shift_widget.dart';
 import 'package:flutter/material.dart';
@@ -325,30 +328,41 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                 Row(
                   children: [
                     if (shift.hasEdit)
-                      _buildActionIcon(Icons.edit, Colors.orange, screenHeight),
+                      _buildActionIcon(
+                        Icons.edit,
+                        Colors.orange,
+                        screenHeight,
+                        () {},
+                      ),
                     if (shift.hasCancel)
                       _buildActionIcon(
                         Icons.cancel,
                         Colors.black,
                         screenHeight,
+                        () {},
                       ),
                     if (shift.hasAdd)
                       _buildActionIcon(
                         Icons.add_circle,
                         Colors.green,
                         screenHeight,
+                        () {},
                       ),
                     if (shift.hasView)
                       _buildActionIcon(
                         Icons.visibility,
                         Colors.orange,
                         screenHeight,
+                        () {
+                          NavigatorHelper.push(ViewRequestDialog());
+                        },
                       ),
                     if (shift.hasDocument)
                       _buildActionIcon(
                         Icons.description,
                         Colors.orange,
                         screenHeight,
+                        () {},
                       ),
                   ],
                 ),
@@ -360,10 +374,18 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
     );
   }
 
-  Widget _buildActionIcon(IconData icon, Color color, double screenHeight) {
-    return Container(
-      margin: EdgeInsets.only(left: 8),
-      child: Icon(icon, color: color, size: screenHeight * 0.028),
+  Widget _buildActionIcon(
+    IconData icon,
+    Color color,
+    double screenHeight,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: EdgeInsets.only(left: 8),
+        child: Icon(icon, color: color, size: screenHeight * 0.028),
+      ),
     );
   }
 
@@ -372,7 +394,7 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
       margin: EdgeInsets.symmetric(vertical: screenHeight * 0.02),
       child: OutlinedButton(
         onPressed: () {
-          // Add shift action
+          NavigatorHelper.push(AddShiftScreen());
         },
         style: OutlinedButton.styleFrom(
           padding: EdgeInsets.symmetric(vertical: screenHeight * 0.018),

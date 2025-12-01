@@ -306,6 +306,7 @@ class _ClockInOutPageState extends State<ClockInOutPage> {
                         role: slot.role,
                         location: slot.location,
                         address: slot.address,
+                        shiftDate: slot.shiftDate,
                         inTimeStatus: slot.inTimeStatus,
                         outTimeStatus: slot.outTimeStatus,
                         screenWidth: screenWidth,

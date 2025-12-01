@@ -18,6 +18,7 @@ class ClockinShiftCard extends StatefulWidget {
   final String role;
   final String location;
   final String address;
+  final String? shiftDate;
   final bool inTimeStatus;
   final bool outTimeStatus;
   final bool managerStatus;
@@ -32,6 +33,7 @@ class ClockinShiftCard extends StatefulWidget {
     required this.role,
     required this.location,
     required this.address,
+    this.shiftDate,
     required this.inTimeStatus,
     required this.outTimeStatus,
     required this.managerStatus,
@@ -72,6 +74,18 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
     }
     if (widget.managerStatus != oldWidget.managerStatus) {
       _localManagerStatus = widget.managerStatus;
+    }
+  }
+
+  String _formatDate(String? date) {
+    if (date == null || date.isEmpty) return '';
+
+    try {
+      final parsed = DateTime.parse(date);
+      final formatted = DateFormat('EEE, dd-MMM-yyyy').format(parsed);
+      return formatted; // Wed, 26-Nov-2026
+    } catch (e) {
+      return date; // fallback
     }
   }
 
@@ -195,6 +209,24 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
                         ],
                       ),
                       SizedBox(height: widget.screenHeight * 0.008),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today_outlined,
+                            size: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              _formatDate(widget.shiftDate),
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: widget.screenHeight * 0.008),
+
                       Row(
                         children: [
                           Icon(

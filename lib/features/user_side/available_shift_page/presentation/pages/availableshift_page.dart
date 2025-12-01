@@ -302,6 +302,18 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
     return Scaffold(
       appBar: CustomAppBar(
         actions: [
+          // Reload button
+          GestureDetector(
+            onTap: () {
+              context.read<ShiftBloc>().add(FetchShifts());
+            },
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Icon(Icons.refresh, color: kWhite),
+            ),
+          ),
+
+          // Filter button with badge
           Stack(
             children: [
               GestureDetector(
@@ -312,6 +324,7 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
                 },
                 child: Icon(Icons.filter_list, color: kWhite),
               ),
+
               if (selectedOrganization != null)
                 Positioned(
                   right: 0,
@@ -327,8 +340,10 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
                 ),
             ],
           ),
+
           SizedBox(width: 16),
         ],
+
         title: 'Available Shift',
         backgroundColor: primaryDarK,
       ),
@@ -336,26 +351,110 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
         listener: (context, state) {
           if (state is ShiftClaimSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Shift claimed successfully')),
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Shift claimed and notification sent to admin!',
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+              ),
             );
+          } else if (state is ShiftClaimError) {
+            // Show dialog for time conflict
+            showDialog(
+              context: context,
+              builder: (BuildContext dialogContext) {
+                return AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: Row(
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.orange,
+                        size: 28,
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Shift Conflict',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        state.message,
+                        style: TextStyle(fontSize: 16, height: 1.5),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: TextButton.styleFrom(
+                        foregroundColor: primaryColor,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                      ),
+                      child: Text(
+                        'OK',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          } else if (state is ShiftSessionExpired) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Session expired. Please login again.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/login', (route) => false);
           }
         },
         builder: (context, state) {
           if (state is ShiftLoading) {
-            // Show shimmer loading effect
             return ListView.builder(
-              itemCount: 5, // Show 5 shimmer placeholders
+              itemCount: 5,
               itemBuilder: (context, index) {
                 return buildShiftCardShimmer(screenWidth, screenHeight);
               },
             );
           } else if (state is ShiftLoaded) {
-            // Extract unique organization names and update the list
             final organizations =
                 state.shifts.map((shift) => shift.agencyName).toSet().toList()
                   ..sort();
 
-            // Update allOrganizations for the filter dialog
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 setState(() {
@@ -364,7 +463,6 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
               }
             });
 
-            // Filter shifts based on selected organization
             final filteredShifts =
                 selectedOrganization == null
                     ? state.shifts
@@ -467,9 +565,11 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
                           agencyName: shift.agencyName,
                           notes: shift.notes,
                           location: shift.location,
-
                           onButtonPressed: () {
-                            context.read<ShiftBloc>().add(ClaimShift(shift.id));
+                            // Pass shift ID, date, and time for validation
+                            context.read<ShiftBloc>().add(
+                              ClaimShift(shift.id, shift.date, shift.time),
+                            );
                           },
                         ),
                       );

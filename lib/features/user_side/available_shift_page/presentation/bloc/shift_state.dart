@@ -17,3 +17,10 @@ class ShiftError extends ShiftState {
 }
 
 class ShiftClaimSuccess extends ShiftState {}
+
+class ShiftClaimError extends ShiftState {
+  final String message;
+  ShiftClaimError(this.message);
+}
+
+class ShiftSessionExpired extends ShiftState {}

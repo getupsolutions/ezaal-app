@@ -18,3 +18,5 @@ class AttendanceFailure extends AttendanceState {
   final String message;
   AttendanceFailure(this.message);
 }
+
+

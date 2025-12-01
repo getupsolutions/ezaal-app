@@ -6,6 +6,7 @@ class SlotEntity {
   final String role;
   final String location;
   final String address;
+  final String? shiftDate;
   final bool inTimeStatus; // Whether user has clocked in (sigin is not null)
   final bool
   outTimeStatus; // Whether user has clocked out (signout is not null)
@@ -22,6 +23,7 @@ class SlotEntity {
     this.outTimeStatus = false,
     this.managerStatus = false,
     this.userClockinLocation,
+    this.shiftDate,
   });
 
   SlotEntity applyLocalState(LocalSlotState? localState) {
@@ -33,6 +35,7 @@ class SlotEntity {
       role: role,
       location: location,
       address: address,
+      shiftDate: shiftDate,
       // Apply local state OR server state
       inTimeStatus: localState.hasLocalClockIn || inTimeStatus,
       outTimeStatus: localState.hasLocalClockOut || outTimeStatus,
