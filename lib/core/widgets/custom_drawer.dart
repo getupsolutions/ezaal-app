@@ -25,7 +25,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
   int selectedIndex = -1; // Default no selection
 
   Future<void> _launchURL() async {
-    final Uri url = Uri.parse('https://getupsolutions.in');
+    final Uri url = Uri.parse('https://getupsolutions.com.au/');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       // Show error if URL can't be launched
       if (mounted) {
