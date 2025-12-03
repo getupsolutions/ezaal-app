@@ -15,7 +15,12 @@ import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/usecase/mana
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/queded_operation.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/data/remote_datasource/notification_remote_datasource..dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/data/repositoryImpl/notification_repositoryimpl.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/domain/repository/notification_repository.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/domain/usecase/notification_usecase.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/dashboard_bloc.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_bloc.dart';
 import 'package:ezaal/features/user_side/login_screen/data/data_source/auth_remotedatasource.dart';
 import 'package:ezaal/features/user_side/login_screen/data/repository/auth_repositoryimp.dart';
 import 'package:ezaal/features/user_side/login_screen/domain/repository/auth_repository.dart';
@@ -59,6 +64,15 @@ Future<void> init() async {
   sl.registerFactory(() => ManagerInfoBloc(submitManagerInfoUseCase: sl()));
   sl.registerFactory(() => TimesheetBloc(getTimesheetUseCase: sl()));
   sl.registerFactory(() => DashboardBloc());
+  sl.registerFactory(
+    () => NotificationBloc(
+      deleteNotificationUseCase: sl(),
+      getNotificationsUseCase: sl(),
+      getUnreadCountUseCase: sl(),
+      markAllAsReadUseCase: sl(),
+      markAsReadUseCase: sl(),
+    ),
+  );
 
   //! UseCases
   sl.registerLazySingleton(() => LoginUseCase(sl()));
@@ -71,6 +85,11 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetSlotUseCase(sl()));
   sl.registerLazySingleton(() => SubmitManagerInfoUseCase(sl()));
   sl.registerLazySingleton(() => GetTimesheetUseCase(sl()));
+  sl.registerLazySingleton(() => GetNotificationsUseCase(sl()));
+  sl.registerLazySingleton(() => GetUnreadCountUseCase(sl()));
+  sl.registerLazySingleton(() => MarkAsReadUseCase(sl()));
+  sl.registerLazySingleton(() => MarkAllAsReadUseCase(sl()));
+  sl.registerLazySingleton(() => DeleteNotificationUseCase(sl()));
 
   //! Repository
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl()));
@@ -86,6 +105,9 @@ Future<void> init() async {
   );
   sl.registerLazySingleton<TimesheetRepository>(
     () => TimesheetRepositoryImpl(remoteDataSource: sl()),
+  );
+  sl.registerLazySingleton<NotificationRepository>(
+    () => NotificationRepositoryImpl(sl()),
   );
 
   //! Data sources
@@ -110,5 +132,8 @@ Future<void> init() async {
       attendanceDataSource: sl<AttendanceRemoteDataSource>(),
       managerInfoDataSource: sl<ManagerInfoRemoteDataSource>(),
     ),
+  );
+  sl.registerLazySingleton<NotificationRemoteDataSource>(
+    () => NotificationRemoteDataSource(),
   );
 }

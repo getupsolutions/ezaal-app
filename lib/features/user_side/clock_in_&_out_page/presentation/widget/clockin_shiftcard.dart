@@ -1,956 +1,1129 @@
-import 'package:ezaal/core/constant/constant.dart';
-import 'package:ezaal/core/services/location_service.dart';
-import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_bloc.dart';
-import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_event.dart';
-import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_state.dart';
-import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_bloc.dart';
-import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_event.dart';
-import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/attendance_bloc.dart';
-import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/attendance_state.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
-import 'package:signature/signature.dart';
+// import 'dart:typed_data';
 
-class ClockinShiftCard extends StatefulWidget {
-  final String requestID;
-  final String time;
-  final String role;
-  final String location;
-  final String address;
-  final String? shiftDate;
-  final bool inTimeStatus;
-  final bool outTimeStatus;
-  final bool managerStatus;
-  final double screenWidth;
-  final double screenHeight;
-  final VoidCallback? onOperationQueued;
+// import 'package:ezaal/core/constant/constant.dart';
+// import 'package:ezaal/core/services/location_service.dart';
+// import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_bloc.dart';
+// import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_event.dart';
+// import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_state.dart';
+// import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_bloc.dart';
+// import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_event.dart';
+// import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/attendance_bloc.dart';
+// import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/attendance_state.dart';
+// import 'package:flutter/material.dart';
+// import 'package:flutter_bloc/flutter_bloc.dart';
+// import 'package:intl/intl.dart';
+// import 'package:signature/signature.dart';
 
-  const ClockinShiftCard({
-    super.key,
-    required this.requestID,
-    required this.time,
-    required this.role,
-    required this.location,
-    required this.address,
-    this.shiftDate,
-    required this.inTimeStatus,
-    required this.outTimeStatus,
-    required this.managerStatus,
-    required this.screenWidth,
-    required this.screenHeight,
-    this.onOperationQueued,
-  });
+// class ClockinShiftCard extends StatefulWidget {
+//   final String requestID;
+//   final String time;
+//   final String role;
+//   final String location;
+//   final String address;
+//   final String? shiftDate;
+//   final bool inTimeStatus;
+//   final bool outTimeStatus;
+//   final bool managerStatus;
+//   final double screenWidth;
+//   final double screenHeight;
+//   final VoidCallback? onOperationQueued;
 
-  @override
-  State<ClockinShiftCard> createState() => _ClockinShiftCardState();
-}
+//   const ClockinShiftCard({
+//     super.key,
+//     required this.requestID,
+//     required this.time,
+//     required this.role,
+//     required this.location,
+//     required this.address,
+//     this.shiftDate,
+//     required this.inTimeStatus,
+//     required this.outTimeStatus,
+//     required this.managerStatus,
+//     required this.screenWidth,
+//     required this.screenHeight,
+//     this.onOperationQueued,
+//   });
 
-class _ClockinShiftCardState extends State<ClockinShiftCard> {
-  // ✅ Local state to track operations immediately
-  bool _localInTimeStatus = false;
-  bool _localOutTimeStatus = false;
-  bool _localManagerStatus = false;
+//   @override
+//   State<ClockinShiftCard> createState() => _ClockinShiftCardState();
+// }
 
-  @override
-  void initState() {
-    super.initState();
-    // Initialize with API values
-    _localInTimeStatus = widget.inTimeStatus;
-    _localOutTimeStatus = widget.outTimeStatus;
-    _localManagerStatus = widget.managerStatus;
-  }
+// class _ClockinShiftCardState extends State<ClockinShiftCard> {
+//   // Local state mirrors API & updates instantly for UI
+//   bool _localInTimeStatus = false;
+//   bool _localOutTimeStatus = false;
+//   bool _localManagerStatus = false;
 
-  @override
-  void didUpdateWidget(ClockinShiftCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
+//   @override
+//   void initState() {
+//     super.initState();
+//     _localInTimeStatus = widget.inTimeStatus;
+//     _localOutTimeStatus = widget.outTimeStatus;
+//     _localManagerStatus = widget.managerStatus;
+//   }
 
-    // ✅ Always sync with API data when it becomes true
-    if (widget.inTimeStatus != oldWidget.inTimeStatus) {
-      _localInTimeStatus = widget.inTimeStatus;
-    }
-    if (widget.outTimeStatus != oldWidget.outTimeStatus) {
-      _localOutTimeStatus = widget.outTimeStatus;
-    }
-    if (widget.managerStatus != oldWidget.managerStatus) {
-      _localManagerStatus = widget.managerStatus;
-    }
-  }
+//   @override
+//   void didUpdateWidget(ClockinShiftCard oldWidget) {
+//     super.didUpdateWidget(oldWidget);
 
-  String _formatDate(String? date) {
-    if (date == null || date.isEmpty) return '';
+//     if (widget.inTimeStatus != oldWidget.inTimeStatus) {
+//       _localInTimeStatus = widget.inTimeStatus;
+//     }
+//     if (widget.outTimeStatus != oldWidget.outTimeStatus) {
+//       _localOutTimeStatus = widget.outTimeStatus;
+//     }
+//     if (widget.managerStatus != oldWidget.managerStatus) {
+//       _localManagerStatus = widget.managerStatus;
+//     }
+//   }
 
-    try {
-      final parsed = DateTime.parse(date);
-      final formatted = DateFormat('EEE, dd-MMM-yyyy').format(parsed);
-      return formatted; // Wed, 26-Nov-2026
-    } catch (e) {
-      return date; // fallback
-    }
-  }
+//   String _formatDate(String? date) {
+//     if (date == null || date.isEmpty) return '';
 
-  @override
-  Widget build(BuildContext context) {
-    return BlocConsumer<AttendanceBloc, AttendanceState>(
-      listener: (context, state) {
-        if (state is AttendanceFailure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ ${state.message}'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        } else if (state is ClockInSuccess) {
-          // ✅ Update local state immediately for instant UI feedback
-          setState(() {
-            _localInTimeStatus = true;
-          });
+//     try {
+//       final parsed = DateTime.parse(date);
+//       final formatted = DateFormat('EEE, dd-MMM-yyyy').format(parsed);
+//       return formatted;
+//     } catch (e) {
+//       return date;
+//     }
+//   }
 
-          widget.onOperationQueued?.call();
+//   void _onAttendanceStateChanged(BuildContext context, AttendanceState state) {
+//     if (state is AttendanceFailure) {
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(
+//           content: Text('❌ ${state.message}'),
+//           backgroundColor: Colors.red,
+//           duration: const Duration(seconds: 3),
+//         ),
+//       );
+//     } else if (state is ClockInSuccess) {
+//       // Clock In success
+//       if (!mounted) return;
+//       setState(() {
+//         _localInTimeStatus = true;
+//       });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                state.isOfflineQueued
-                    ? '📥 Clock-in saved. Will sync when online.'
-                    : '✅ Clocked in successfully',
-              ),
-              backgroundColor:
-                  state.isOfflineQueued ? Colors.blue : Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+//       widget.onOperationQueued?.call();
 
-          // ✅ Refresh slots immediately
-          if (context.mounted) {
-            context.read<SlotBloc>().add(LoadSlots());
-          }
-        } else if (state is ClockOutSuccess) {
-          // ✅ Update local state immediately for instant UI feedback
-          setState(() {
-            _localOutTimeStatus = true;
-          });
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(
+//           content: Text(
+//             state.isOfflineQueued
+//                 ? '📥 Clock-in saved. Will sync when online.'
+//                 : '✅ Clocked in successfully',
+//           ),
+//           backgroundColor: state.isOfflineQueued ? Colors.blue : Colors.green,
+//           duration: const Duration(seconds: 2),
+//         ),
+//       );
 
-          widget.onOperationQueued?.call();
+//       context.read<SlotBloc>().add(LoadSlots());
+//     } else if (state is ClockOutSuccess) {
+//       // Clock Out success
+//       if (!mounted) return;
+//       setState(() {
+//         _localOutTimeStatus = true;
+//       });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                state.isOfflineQueued
-                    ? '📥 Clock-out saved. Will sync when online.'
-                    : '✅ Clocked out successfully',
-              ),
-              backgroundColor:
-                  state.isOfflineQueued ? Colors.blue : Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+//       widget.onOperationQueued?.call();
 
-          // ✅ Refresh slots immediately
-          if (context.mounted) {
-            context.read<SlotBloc>().add(LoadSlots());
-          }
-        }
-      },
-      builder: (context, state) {
-        // ✅ NEW WORKFLOW: Clock In → Manager Info → Clock Out
-        final bool showClockIn = !_localInTimeStatus;
-        final bool showManagerInfo = _localInTimeStatus && !_localManagerStatus;
-        final bool showClockOut =
-            _localInTimeStatus && _localManagerStatus && !_localOutTimeStatus;
-        final bool isCompleted =
-            _localInTimeStatus && _localManagerStatus && _localOutTimeStatus;
-        final bool isLoading = state is AttendanceLoading;
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(
+//           content: Text(
+//             state.isOfflineQueued
+//                 ? '📥 Clock-out saved. Will sync when online.'
+//                 : '✅ Clocked out successfully',
+//           ),
+//           backgroundColor: state.isOfflineQueued ? Colors.blue : Colors.green,
+//           duration: const Duration(seconds: 2),
+//         ),
+//       );
 
-        return Padding(
-          padding: const EdgeInsets.all(10.0),
-          child: Container(
-            padding: const EdgeInsets.all(10),
-            width: widget.screenWidth,
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: isCompleted ? Colors.green : Colors.grey,
-                width: isCompleted ? 2 : 1,
-              ),
-              borderRadius: BorderRadius.circular(10),
-              color: isCompleted ? Colors.green.shade50 : Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.shade300,
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.access_time,
-                            size: 16,
-                            color: Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            widget.time,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: widget.screenHeight * 0.008),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_today_outlined,
-                            size: 14,
-                            color: Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              _formatDate(widget.shiftDate),
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: widget.screenHeight * 0.008),
+//       context.read<SlotBloc>().add(LoadSlots());
+//     }
+//   }
 
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.badge_outlined,
-                            size: 14,
-                            color: Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(child: Text(widget.role)),
-                        ],
-                      ),
-                      SizedBox(height: widget.screenHeight * 0.008),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.business,
-                            size: 14,
-                            color: Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(child: Text(widget.location)),
-                        ],
-                      ),
-                      SizedBox(height: widget.screenHeight * 0.008),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.location_on_outlined,
-                            size: 14,
-                            color: Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              widget.address,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (isCompleted) ...[
-                        SizedBox(height: widget.screenHeight * 0.008),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.check_circle,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                'Completed',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ] else if (showManagerInfo || showClockOut) ...[
-                        SizedBox(height: widget.screenHeight * 0.008),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade100,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.timer,
-                                color: Colors.blue.shade700,
-                                size: 14,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'In Progress',
-                                style: TextStyle(
-                                  color: Colors.blue.shade700,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  height: 40,
-                  width: showManagerInfo ? 110 : 100,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          showManagerInfo
-                              ? Colors.blue
-                              : (showClockOut ? Colors.red : primaryColor),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 2,
-                    ),
-                    onPressed:
-                        isLoading || isCompleted
-                            ? null
-                            : () async {
-                              if (showManagerInfo) {
-                                _showManagerInfoDialog(context);
-                              } else if (showClockOut) {
-                                await _handleClockOut(context);
-                              } else if (showClockIn) {
-                                await _handleClockIn(context);
-                              }
-                            },
-                    child:
-                        isLoading
-                            ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                            : Text(
-                              showManagerInfo
-                                  ? 'Manager Info'
-                                  : (showClockOut ? 'Clock Out' : 'Clock In'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+//   void _onManagerInfoStateChanged(
+//     BuildContext context,
+//     ManagerInfoState state,
+//   ) {
+//     if (state is ManagerInfoSuccess) {
+//       if (!mounted) return;
 
-  Future<void> _handleClockIn(BuildContext context) async {
-    final confirm = await _showConfirmationDialog(context);
-    if (!confirm || !context.mounted) return;
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(
+//           content: Text(
+//             state.isOfflineQueued
+//                 ? '📥 Manager info saved. Will sync when online.'
+//                 : '✅ Manager info recorded successfully',
+//           ),
+//           backgroundColor: state.isOfflineQueued ? Colors.blue : Colors.green,
+//         ),
+//       );
 
-    final userLocation = await LocationService.getCurrentLocation();
+//       widget.onOperationQueued?.call();
 
-    if (userLocation == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Unable to get your location. Please enable location services.',
-            ),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    }
+//       setState(() {
+//         _localManagerStatus = true;
+//       });
 
-    final now = DateTime.now();
-    final currentTime = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+//       context.read<SlotBloc>().add(LoadSlots());
+//     } else if (state is ManagerInfoFailure) {
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(
+//           content: Text('❌ ${state.message}'),
+//           backgroundColor: Colors.red,
+//         ),
+//       );
+//     }
+//   }
 
-    final parts = widget.time.split(' - ');
-    if (parts.length < 2) return;
+//   @override
+//   Widget build(BuildContext context) {
+//     return MultiBlocListener(
+//       listeners: [
+//         BlocListener<AttendanceBloc, AttendanceState>(
+//           listener: _onAttendanceStateChanged,
+//         ),
+//         BlocListener<ManagerInfoBloc, ManagerInfoState>(
+//           listener: _onManagerInfoStateChanged,
+//         ),
+//       ],
+//       child: BlocBuilder<AttendanceBloc, AttendanceState>(
+//         builder: (context, attendanceState) {
+//           return BlocBuilder<ManagerInfoBloc, ManagerInfoState>(
+//             builder: (context, managerState) {
+//               final bool showClockIn = !_localInTimeStatus;
+//               // NEW FLOW: after clock-in, button is Clock Out (manager info is inside this flow)
+//               final bool showClockOut =
+//                   _localInTimeStatus && !_localOutTimeStatus;
+//               final bool isCompleted =
+//                   _localInTimeStatus &&
+//                   _localManagerStatus &&
+//                   _localOutTimeStatus;
 
-    try {
-      final startTime = DateFormat('HH:mm:ss').parse(parts[0]);
-      final startDateTime = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        startTime.hour,
-        startTime.minute,
-        startTime.second,
-      );
+//               final bool isLoading =
+//                   attendanceState is AttendanceLoading ||
+//                   managerState is ManagerInfoLoading;
 
-      String signintype = 'ontime';
-      bool needsReason = false;
+//               return Padding(
+//                 padding: const EdgeInsets.all(10.0),
+//                 child: Container(
+//                   padding: const EdgeInsets.all(10),
+//                   width: widget.screenWidth,
+//                   decoration: BoxDecoration(
+//                     border: Border.all(
+//                       color: isCompleted ? Colors.green : Colors.grey,
+//                       width: isCompleted ? 2 : 1,
+//                     ),
+//                     borderRadius: BorderRadius.circular(10),
+//                     color: isCompleted ? Colors.green.shade50 : Colors.white,
+//                     boxShadow: [
+//                       BoxShadow(
+//                         color: Colors.grey.shade300,
+//                         blurRadius: 4,
+//                         offset: const Offset(0, 2),
+//                       ),
+//                     ],
+//                   ),
+//                   child: Row(
+//                     crossAxisAlignment: CrossAxisAlignment.center,
+//                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//                     children: [
+//                       // Left info
+//                       Expanded(
+//                         child: Column(
+//                           crossAxisAlignment: CrossAxisAlignment.start,
+//                           children: [
+//                             Row(
+//                               children: [
+//                                 Icon(
+//                                   Icons.access_time,
+//                                   size: 16,
+//                                   color: Colors.grey.shade600,
+//                                 ),
+//                                 const SizedBox(width: 4),
+//                                 Text(
+//                                   widget.time,
+//                                   style: const TextStyle(
+//                                     fontWeight: FontWeight.bold,
+//                                     fontSize: 16,
+//                                   ),
+//                                 ),
+//                               ],
+//                             ),
+//                             SizedBox(height: widget.screenHeight * 0.008),
+//                             Row(
+//                               children: [
+//                                 Icon(
+//                                   Icons.calendar_today_outlined,
+//                                   size: 14,
+//                                   color: Colors.grey.shade600,
+//                                 ),
+//                                 const SizedBox(width: 4),
+//                                 Expanded(
+//                                   child: Text(
+//                                     _formatDate(widget.shiftDate),
+//                                     style: const TextStyle(fontSize: 14),
+//                                   ),
+//                                 ),
+//                               ],
+//                             ),
+//                             SizedBox(height: widget.screenHeight * 0.008),
+//                             Row(
+//                               children: [
+//                                 Icon(
+//                                   Icons.badge_outlined,
+//                                   size: 14,
+//                                   color: Colors.grey.shade600,
+//                                 ),
+//                                 const SizedBox(width: 4),
+//                                 Expanded(child: Text(widget.role)),
+//                               ],
+//                             ),
+//                             SizedBox(height: widget.screenHeight * 0.008),
+//                             Row(
+//                               children: [
+//                                 Icon(
+//                                   Icons.business,
+//                                   size: 14,
+//                                   color: Colors.grey.shade600,
+//                                 ),
+//                                 const SizedBox(width: 4),
+//                                 Expanded(child: Text(widget.location)),
+//                               ],
+//                             ),
+//                             SizedBox(height: widget.screenHeight * 0.008),
+//                             Row(
+//                               children: [
+//                                 Icon(
+//                                   Icons.location_on_outlined,
+//                                   size: 14,
+//                                   color: Colors.grey.shade600,
+//                                 ),
+//                                 const SizedBox(width: 4),
+//                                 Expanded(
+//                                   child: Text(
+//                                     widget.address,
+//                                     maxLines: 2,
+//                                     overflow: TextOverflow.ellipsis,
+//                                   ),
+//                                 ),
+//                               ],
+//                             ),
+//                             if (isCompleted) ...[
+//                               SizedBox(height: widget.screenHeight * 0.008),
+//                               Container(
+//                                 padding: const EdgeInsets.symmetric(
+//                                   horizontal: 8,
+//                                   vertical: 4,
+//                                 ),
+//                                 decoration: BoxDecoration(
+//                                   color: Colors.green,
+//                                   borderRadius: BorderRadius.circular(4),
+//                                 ),
+//                                 child: const Row(
+//                                   mainAxisSize: MainAxisSize.min,
+//                                   children: [
+//                                     Icon(
+//                                       Icons.check_circle,
+//                                       color: Colors.white,
+//                                       size: 14,
+//                                     ),
+//                                     SizedBox(width: 4),
+//                                     Text(
+//                                       'Completed',
+//                                       style: TextStyle(
+//                                         color: Colors.white,
+//                                         fontWeight: FontWeight.bold,
+//                                         fontSize: 12,
+//                                       ),
+//                                     ),
+//                                   ],
+//                                 ),
+//                               ),
+//                             ] else if (_localInTimeStatus &&
+//                                 !_localOutTimeStatus) ...[
+//                               SizedBox(height: widget.screenHeight * 0.008),
+//                               Container(
+//                                 padding: const EdgeInsets.symmetric(
+//                                   horizontal: 8,
+//                                   vertical: 4,
+//                                 ),
+//                                 decoration: BoxDecoration(
+//                                   color: Colors.blue.shade100,
+//                                   borderRadius: BorderRadius.circular(4),
+//                                 ),
+//                                 child: Row(
+//                                   mainAxisSize: MainAxisSize.min,
+//                                   children: [
+//                                     Icon(
+//                                       Icons.timer,
+//                                       color: Colors.blue.shade700,
+//                                       size: 14,
+//                                     ),
+//                                     const SizedBox(width: 4),
+//                                     Text(
+//                                       'In Progress',
+//                                       style: TextStyle(
+//                                         color: Colors.blue.shade700,
+//                                         fontWeight: FontWeight.bold,
+//                                         fontSize: 12,
+//                                       ),
+//                                     ),
+//                                   ],
+//                                 ),
+//                               ),
+//                             ],
+//                           ],
+//                         ),
+//                       ),
+//                       const SizedBox(width: 10),
+//                       // Right button
+//                       SizedBox(
+//                         height: 40,
+//                         width: 110,
+//                         child: ElevatedButton(
+//                           style: ElevatedButton.styleFrom(
+//                             backgroundColor:
+//                                 showClockIn ? primaryColor : Colors.red,
+//                             shape: RoundedRectangleBorder(
+//                               borderRadius: BorderRadius.circular(8),
+//                             ),
+//                             elevation: 2,
+//                           ),
+//                           onPressed:
+//                               isLoading || isCompleted
+//                                   ? null
+//                                   : () async {
+//                                     if (showClockIn) {
+//                                       await _handleClockIn(context);
+//                                     } else if (showClockOut) {
+//                                       await _handleFullClockOutFlow(context);
+//                                     }
+//                                   },
+//                           child:
+//                               isLoading
+//                                   ? const SizedBox(
+//                                     width: 16,
+//                                     height: 16,
+//                                     child: CircularProgressIndicator(
+//                                       strokeWidth: 2,
+//                                       color: Colors.white,
+//                                     ),
+//                                   )
+//                                   : Text(
+//                                     showClockIn ? 'Clock In' : 'Clock Out',
+//                                     style: const TextStyle(
+//                                       color: Colors.white,
+//                                       fontWeight: FontWeight.w600,
+//                                       fontSize: 13,
+//                                     ),
+//                                   ),
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+//                 ),
+//               );
+//             },
+//           );
+//         },
+//       ),
+//     );
+//   }
 
-      if (now.isBefore(startDateTime)) {
-        signintype = 'early';
-        needsReason = true;
-      } else if (now.isAfter(startDateTime.add(const Duration(minutes: 15)))) {
-        signintype = 'late';
-        needsReason = true;
-      }
+//   // ---------- CLOCK IN ----------
 
-      if (needsReason) {
-        await _showReasonDialog(
-          context,
-          title: signintype == 'early' ? 'Early Clock-In' : 'Late Clock-In',
-          requestID: widget.requestID,
-          currentTime: currentTime,
-          signintype: signintype,
-          userLocation: userLocation,
-        );
-      } else {
-        if (context.mounted) {
-          context.read<AttendanceBloc>().add(
-            ClockInRequested(
-              requestID: widget.requestID,
-              inTime: currentTime,
-              signintype: signintype,
-              userLocation: userLocation,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ Time parse error: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error parsing time format')),
-        );
-      }
-    }
-  }
+//   Future<void> _handleClockIn(BuildContext context) async {
+//     final confirm = await _showConfirmationDialog(context);
+//     if (!confirm || !mounted) return;
 
-  Future<void> _handleClockOut(BuildContext context) async {
-    final now = DateTime.now();
-    final currentTime = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+//     final userLocation = await LocationService.getCurrentLocation();
 
-    final parts = widget.time.split(' - ');
-    if (parts.length < 2) {
-      debugPrint('❌ Invalid time format: ${widget.time}');
-      return;
-    }
+//     if (userLocation == null) {
+//       if (!mounted) return;
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         const SnackBar(
+//           content: Text(
+//             'Unable to get your location. Please enable location services.',
+//           ),
+//           backgroundColor: Colors.orange,
+//         ),
+//       );
+//     }
 
-    try {
-      final endTime = DateFormat('HH:mm:ss').parse(parts[1]);
-      final endDateTime = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        endTime.hour,
-        endTime.minute,
-        endTime.second,
-      );
+//     final now = DateTime.now();
+//     final currentTime = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
 
-      String signouttype = 'ontime';
-      bool needsReason = false;
+//     final parts = widget.time.split(' - ');
+//     if (parts.length < 2) return;
 
-      if (now.isBefore(endDateTime.subtract(const Duration(minutes: 15)))) {
-        signouttype = 'early';
-        needsReason = true;
-      } else if (now.isAfter(endDateTime.add(const Duration(minutes: 15)))) {
-        signouttype = 'late';
-        needsReason = true;
-      }
+//     try {
+//       final startTime = DateFormat('HH:mm:ss').parse(parts[0]);
+//       final startDateTime = DateTime(
+//         now.year,
+//         now.month,
+//         now.day,
+//         startTime.hour,
+//         startTime.minute,
+//         startTime.second,
+//       );
 
-      if (!context.mounted) return;
+//       String signintype = 'ontime';
+//       bool needsReason = false;
 
-      final attendanceBloc = context.read<AttendanceBloc>();
+//       if (now.isBefore(startDateTime)) {
+//         signintype = 'early';
+//         needsReason = true;
+//       } else if (now.isAfter(startDateTime.add(const Duration(minutes: 15)))) {
+//         signintype = 'late';
+//         needsReason = true;
+//       }
 
-      await _showClockOutDialog(
-        context,
-        title:
-            needsReason
-                ? (signouttype == 'early'
-                    ? 'Early Clock-Out'
-                    : 'Late Clock-Out')
-                : 'Clock Out Confirmation',
-        message:
-            needsReason
-                ? 'You are clocking out ${signouttype == 'early' ? 'before' : 'after'} your scheduled time.'
-                : 'Are you sure you want to clock out?',
-        needsReason: needsReason,
-        requestID: widget.requestID,
-        currentTime: currentTime,
-        signouttype: signouttype,
-        attendanceBloc: attendanceBloc,
-      );
-    } catch (e) {
-      debugPrint('❌ Time parse error in _handleClockOut: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error parsing time format: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
+//       if (needsReason) {
+//         await _showReasonDialog(
+//           context,
+//           title: signintype == 'early' ? 'Early Clock-In' : 'Late Clock-In',
+//           requestID: widget.requestID,
+//           currentTime: currentTime,
+//           signintype: signintype,
+//           userLocation: userLocation,
+//         );
+//       } else {
+//         if (!mounted) return;
+//         context.read<AttendanceBloc>().add(
+//           ClockInRequested(
+//             requestID: widget.requestID,
+//             inTime: currentTime,
+//             signintype: signintype,
+//             userLocation: userLocation,
+//           ),
+//         );
+//       }
+//     } catch (e) {
+//       debugPrint('❌ Time parse error: $e');
+//       if (!mounted) return;
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         const SnackBar(content: Text('Error parsing time format')),
+//       );
+//     }
+//   }
 
-  Future<bool> _showConfirmationDialog(BuildContext context) async {
-    return await showDialog<bool>(
-          context: context,
-          builder:
-              (context) => AlertDialog(
-                title: const Text('Are You Sure?', textAlign: TextAlign.center),
-                content: const Text(
-                  'Please confirm your work hours and obtain the necessary signature '
-                  'from the staff or RN in charge at the end of each shift.\nBe punctual.\nThank you!',
-                  textAlign: TextAlign.center,
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                    ),
-                    child: const Text(
-                      'Confirm',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-        ) ??
-        false;
-  }
+//   // ---------- NEW FULL CLOCK OUT FLOW ----------
 
-  Future<void> _showReasonDialog(
-    BuildContext context, {
-    required String title,
-    required String requestID,
-    required String currentTime,
-    required String signintype,
-    String? userLocation,
-  }) async {
-    final TextEditingController reasonController = TextEditingController();
+//   Future<void> _handleFullClockOutFlow(BuildContext context) async {
+//     final now = DateTime.now();
+//     final currentTime = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
 
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder:
-          (context) => AlertDialog(
-            title: Text(title),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Please provide a reason for $title.',
-                  style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: reasonController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Reason',
-                    hintText: 'Enter your reason here...',
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
-                onPressed: () {
-                  if (reasonController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please enter a reason')),
-                    );
-                    return;
-                  }
-                  Navigator.pop(context);
-                  context.read<AttendanceBloc>().add(
-                    ClockInRequested(
-                      requestID: requestID,
-                      inTime: currentTime,
-                      notes: reasonController.text.trim(),
-                      signintype: signintype,
-                      userLocation: userLocation,
-                    ),
-                  );
-                },
-                child: const Text(
-                  'Submit',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
+//     final parts = widget.time.split(' - ');
+//     if (parts.length < 2) {
+//       debugPrint('❌ Invalid time format: ${widget.time}');
+//       return;
+//     }
 
-  Future<void> _showClockOutDialog(
-    BuildContext context, {
-    required String title,
-    required String message,
-    required bool needsReason,
-    required String requestID,
-    required String currentTime,
-    required String signouttype,
-    required AttendanceBloc attendanceBloc,
-  }) async {
-    final TextEditingController breakTimeController = TextEditingController();
-    final TextEditingController reasonController = TextEditingController();
+//     DateTime endDateTime;
+//     try {
+//       final endTime = DateFormat('HH:mm:ss').parse(parts[1]);
+//       endDateTime = DateTime(
+//         now.year,
+//         now.month,
+//         now.day,
+//         endTime.hour,
+//         endTime.minute,
+//         endTime.second,
+//       );
+//     } catch (e) {
+//       debugPrint('❌ Time parse error in _handleFullClockOutFlow: $e');
+//       if (!mounted) return;
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(
+//           content: Text('Error parsing time format: $e'),
+//           backgroundColor: Colors.red,
+//         ),
+//       );
+//       return;
+//     }
 
-    String? breakTime;
-    String? reason;
+//     String signouttype = 'ontime';
+//     bool needsReason = false;
 
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: Text(title),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(message, style: const TextStyle(fontSize: 14)),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Break Time (minutes)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: breakTimeController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      hintText: 'e.g., 30',
-                      prefixIcon: Icon(Icons.access_time),
-                    ),
-                  ),
-                  if (needsReason) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      'Reason for ${signouttype == 'early' ? 'Early' : 'Late'} Clock-Out',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: reasonController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText: 'Enter your reason here...',
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: () {
-                  if (breakTimeController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      const SnackBar(content: Text('Please enter break time')),
-                    );
-                    return;
-                  }
+//     if (now.isBefore(endDateTime.subtract(const Duration(minutes: 15)))) {
+//       signouttype = 'early';
+//       needsReason = true;
+//     } else if (now.isAfter(endDateTime.add(const Duration(minutes: 15)))) {
+//       signouttype = 'late';
+//       needsReason = true;
+//     }
 
-                  if (needsReason && reasonController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      const SnackBar(content: Text('Please enter a reason')),
-                    );
-                    return;
-                  }
+//     if (!mounted) return;
 
-                  breakTime = breakTimeController.text.trim();
-                  reason = needsReason ? reasonController.text.trim() : null;
+//     debugPrint('➡️ Starting full clock-out flow for ${widget.requestID}');
 
-                  Navigator.pop(dialogContext, true);
-                },
-                child: const Text(
-                  'Confirm Clock Out',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-    );
+//     // 1️⃣ Collect Manager Info (NOT saving yet)
+//     final managerInfo = await _collectManagerInfoDialog(context);
+//     debugPrint('Manager info dialog result: $managerInfo');
 
-    if (result == true) {
-      attendanceBloc.add(
-        ClockOutRequested(
-          requestID: requestID,
-          outTime: currentTime,
-          shiftbreak: breakTime,
-          notes: reason,
-          signouttype: signouttype,
-        ),
-      );
-    }
-  }
+//     if (managerInfo == null) {
+//       debugPrint('⛔ Manager info cancelled');
+//       return;
+//     }
+//     if (!mounted) return;
 
-  void _showManagerInfoDialog(BuildContext context) {
-    final TextEditingController nameController = TextEditingController();
-    final TextEditingController designationController = TextEditingController();
-    final SignatureController signatureController = SignatureController(
-      penStrokeWidth: 2,
-      penColor: Colors.black,
-      exportBackgroundColor: Colors.white,
-    );
+//     // 🔑 IMPORTANT: give Flutter a frame to finish popping previous dialog
+//     await Future.delayed(const Duration(milliseconds: 10));
+//     if (!mounted) return;
 
-    final managerInfoBloc = context.read<ManagerInfoBloc>();
+//     // 2️⃣ Collect Clock Out form (NOT saving yet)
+//     final clockOutForm = await _collectClockOutFormDialog(
+//       context,
+//       title:
+//           needsReason
+//               ? (signouttype == 'early' ? 'Early Clock-Out' : 'Late Clock-Out')
+//               : 'Clock Out Confirmation',
+//       message:
+//           needsReason
+//               ? 'You are clocking out ${signouttype == 'early' ? 'before' : 'after'} your scheduled time.'
+//               : 'Are you sure you want to clock out?',
+//       needsReason: needsReason,
+//       signouttype: signouttype,
+//     );
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.person, color: primaryColor),
-              const SizedBox(width: 8),
-              const Text('Manager Information'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Please obtain the necessary signature from the staff or RN in charge.',
-                  style: TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Full Name of Incharge / Authorized Person',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: designationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Designation',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Signature',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: MediaQuery.of(dialogContext).size.width * 0.8,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Signature(
-                    controller: signatureController,
-                    backgroundColor: Colors.grey.shade100,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      onPressed: () => signatureController.clear(),
-                      icon: const Icon(Icons.clear, size: 16),
-                      label: const Text('Clear'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            BlocConsumer<ManagerInfoBloc, ManagerInfoState>(
-              listener: (context, state) {
-                if (state is ManagerInfoSuccess) {
-                  Navigator.pop(dialogContext);
+//     debugPrint('Clock-out form dialog result: $clockOutForm');
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        state.isOfflineQueued
-                            ? '📥 Manager info saved. Will sync when online.'
-                            : '✅ Manager info recorded successfully',
-                      ),
-                      backgroundColor:
-                          state.isOfflineQueued ? Colors.blue : Colors.green,
-                    ),
-                  );
+//     if (clockOutForm == null) {
+//       // User cancelled clock out form
+//       debugPrint('⛔ Clock-out form cancelled');
+//       return;
+//     }
+//     if (!mounted) return;
 
-                  widget.onOperationQueued?.call();
+//     // 🔑 Again, tiny delay before final dialog
+//     await Future.delayed(const Duration(milliseconds: 10));
+//     if (!mounted) return;
 
-                  // ✅ Update local state in the parent widget's context
-                  if (mounted) {
-                    setState(() {
-                      _localManagerStatus = true;
-                    });
-                  }
+//     // 3️⃣ Final review popup
+//     final confirmed = await _showFinalReviewDialog(
+//       context,
+//       managerInfo: managerInfo,
+//       clockOutForm: clockOutForm,
+//       signouttype: signouttype,
+//       outTime: currentTime,
+//     );
 
-                  // ✅ Refresh slots immediately
-                  if (context.mounted) {
-                    context.read<SlotBloc>().add(LoadSlots());
-                  }
-                } else if (state is ManagerInfoFailure) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ ${state.message}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              builder: (context, state) {
-                final isLoading = state is ManagerInfoLoading;
+//     debugPrint('Final review confirmed: $confirmed');
 
-                return ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                  ),
-                  onPressed:
-                      isLoading
-                          ? null
-                          : () async {
-                            if (nameController.text.trim().isEmpty ||
-                                designationController.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Please fill all fields'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                              return;
-                            }
+//     if (!confirmed) {
+//       // User cancelled at final review -> DO NOT SAVE anything
+//       debugPrint('⛔ Final review cancelled, nothing saved');
+//       return;
+//     }
+//     if (!mounted) return;
 
-                            if (signatureController.isEmpty) {
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Please provide a signature'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                              return;
-                            }
+//     // 4️⃣ Submit to DB via blocs (Manager Info + Clock Out)
+//     final managerInfoBloc = context.read<ManagerInfoBloc>();
+//     final attendanceBloc = context.read<AttendanceBloc>();
 
-                            final signatureBytes =
-                                await signatureController.toPngBytes();
+//     debugPrint('✅ Dispatching ManagerInfo & ClockOut events');
 
-                            if (signatureBytes == null) {
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Failed to capture signature'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                              return;
-                            }
+//     managerInfoBloc.add(
+//       SubmitManagerInfoRequested(
+//         requestID: widget.requestID,
+//         managerName: managerInfo.name,
+//         managerDesignation: managerInfo.designation,
+//         signatureBytes: managerInfo.signatureBytes,
+//       ),
+//     );
 
-                            managerInfoBloc.add(
-                              SubmitManagerInfoRequested(
-                                requestID: widget.requestID,
-                                managerName: nameController.text.trim(),
-                                managerDesignation:
-                                    designationController.text.trim(),
-                                signatureBytes: signatureBytes,
-                              ),
-                            );
-                          },
-                  child:
-                      isLoading
-                          ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                          : const Text(
-                            'Submit',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
+//     attendanceBloc.add(
+//       ClockOutRequested(
+//         requestID: widget.requestID,
+//         outTime: currentTime,
+//         shiftbreak: clockOutForm.breakTime,
+//         notes: clockOutForm.reason,
+//         signouttype: signouttype,
+//       ),
+//     );
+//   }
+
+//   // ---------- DIALOG HELPERS ----------
+
+//   Future<bool> _showConfirmationDialog(BuildContext context) async {
+//     return await showDialog<bool>(
+//           context: context,
+//           builder:
+//               (dialogContext) => AlertDialog(
+//                 title: const Text('Are You Sure?', textAlign: TextAlign.center),
+//                 content: const Text(
+//                   'Please confirm your work hours and obtain the necessary signature '
+//                   'from the staff or RN in charge at the end of each shift.\nBe punctual.\nThank you!',
+//                   textAlign: TextAlign.center,
+//                 ),
+//                 actions: [
+//                   TextButton(
+//                     onPressed: () => Navigator.pop(dialogContext, false),
+//                     child: const Text('Cancel'),
+//                   ),
+//                   ElevatedButton(
+//                     onPressed: () => Navigator.pop(dialogContext, true),
+//                     style: ElevatedButton.styleFrom(
+//                       backgroundColor: primaryColor,
+//                     ),
+//                     child: const Text(
+//                       'Confirm',
+//                       style: TextStyle(color: Colors.white),
+//                     ),
+//                   ),
+//                 ],
+//               ),
+//         ) ??
+//         false;
+//   }
+
+//   Future<void> _showReasonDialog(
+//     BuildContext context, {
+//     required String title,
+//     required String requestID,
+//     required String currentTime,
+//     required String signintype,
+//     String? userLocation,
+//   }) async {
+//     final TextEditingController reasonController = TextEditingController();
+
+//     await showDialog(
+//       context: context,
+//       barrierDismissible: false,
+//       builder:
+//           (dialogContext) => AlertDialog(
+//             title: Text(title),
+//             content: Column(
+//               mainAxisSize: MainAxisSize.min,
+//               children: [
+//                 const Text(
+//                   'Please provide a reason for this clock-in.',
+//                   style: TextStyle(fontSize: 14),
+//                 ),
+//                 const SizedBox(height: 12),
+//                 TextField(
+//                   controller: reasonController,
+//                   maxLines: 3,
+//                   decoration: const InputDecoration(
+//                     border: OutlineInputBorder(),
+//                     labelText: 'Reason',
+//                     hintText: 'Enter your reason here...',
+//                   ),
+//                 ),
+//               ],
+//             ),
+//             actions: [
+//               TextButton(
+//                 onPressed: () => Navigator.pop(dialogContext),
+//                 child: const Text('Cancel'),
+//               ),
+//               ElevatedButton(
+//                 style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+//                 onPressed: () {
+//                   if (reasonController.text.trim().isEmpty) {
+//                     ScaffoldMessenger.of(context).showSnackBar(
+//                       const SnackBar(content: Text('Please enter a reason')),
+//                     );
+//                     return;
+//                   }
+//                   Navigator.pop(dialogContext);
+//                   if (!mounted) return;
+//                   context.read<AttendanceBloc>().add(
+//                     ClockInRequested(
+//                       requestID: requestID,
+//                       inTime: currentTime,
+//                       notes: reasonController.text.trim(),
+//                       signintype: signintype,
+//                       userLocation: userLocation,
+//                     ),
+//                   );
+//                 },
+//                 child: const Text(
+//                   'Submit',
+//                   style: TextStyle(color: Colors.white),
+//                 ),
+//               ),
+//             ],
+//           ),
+//     );
+//   }
+
+//   // Temporary holder classes
+//   Future<_ManagerInfoTemp?> _collectManagerInfoDialog(
+//     BuildContext context,
+//   ) async {
+//     final TextEditingController nameController = TextEditingController();
+//     final TextEditingController designationController = TextEditingController();
+//     final SignatureController signatureController = SignatureController(
+//       penStrokeWidth: 2,
+//       penColor: Colors.black,
+//       exportBackgroundColor: Colors.white,
+//     );
+
+//     final result = await showDialog<_ManagerInfoTemp>(
+//       context: context,
+//       barrierDismissible: false,
+//       builder: (dialogContext) {
+//         return AlertDialog(
+//           title: Row(
+//             children: [
+//               Icon(Icons.person, color: primaryColor),
+//               const SizedBox(width: 8),
+//               const Text('Manager Information'),
+//             ],
+//           ),
+//           content: SingleChildScrollView(
+//             child: Column(
+//               mainAxisSize: MainAxisSize.min,
+//               crossAxisAlignment: CrossAxisAlignment.start,
+//               children: [
+//                 const Text(
+//                   'Please obtain the necessary signature from the staff or RN in charge.',
+//                   style: TextStyle(fontSize: 14),
+//                 ),
+//                 const SizedBox(height: 12),
+//                 TextField(
+//                   controller: nameController,
+//                   decoration: const InputDecoration(
+//                     labelText: 'Full Name of Incharge / Authorized Person',
+//                     border: OutlineInputBorder(),
+//                   ),
+//                 ),
+//                 const SizedBox(height: 12),
+//                 TextField(
+//                   controller: designationController,
+//                   decoration: const InputDecoration(
+//                     labelText: 'Designation',
+//                     border: OutlineInputBorder(),
+//                   ),
+//                 ),
+//                 const SizedBox(height: 16),
+//                 const Text(
+//                   'Signature',
+//                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+//                 ),
+//                 const SizedBox(height: 8),
+//                 Container(
+//                   width: MediaQuery.of(dialogContext).size.width * 0.8,
+//                   height: 150,
+//                   decoration: BoxDecoration(
+//                     border: Border.all(color: Colors.grey),
+//                     borderRadius: BorderRadius.circular(8),
+//                   ),
+//                   child: Signature(
+//                     controller: signatureController,
+//                     backgroundColor: Colors.grey.shade100,
+//                   ),
+//                 ),
+//                 const SizedBox(height: 8),
+//                 Row(
+//                   mainAxisAlignment: MainAxisAlignment.end,
+//                   children: [
+//                     TextButton.icon(
+//                       onPressed: () => signatureController.clear(),
+//                       icon: const Icon(Icons.clear, size: 16),
+//                       label: const Text('Clear'),
+//                     ),
+//                   ],
+//                 ),
+//               ],
+//             ),
+//           ),
+//           actions: [
+//             TextButton(
+//               onPressed: () => Navigator.pop(dialogContext, null),
+//               child: const Text('Cancel'),
+//             ),
+//             ElevatedButton(
+//               style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+//               onPressed: () async {
+//                 if (nameController.text.trim().isEmpty ||
+//                     designationController.text.trim().isEmpty) {
+//                   ScaffoldMessenger.of(dialogContext).showSnackBar(
+//                     const SnackBar(
+//                       content: Text('Please fill all fields'),
+//                       backgroundColor: Colors.red,
+//                     ),
+//                   );
+//                   return;
+//                 }
+
+//                 if (signatureController.isEmpty) {
+//                   ScaffoldMessenger.of(dialogContext).showSnackBar(
+//                     const SnackBar(
+//                       content: Text('Please provide a signature'),
+//                       backgroundColor: Colors.red,
+//                     ),
+//                   );
+//                   return;
+//                 }
+
+//                 final signatureBytes = await signatureController.toPngBytes();
+//                 if (signatureBytes == null) {
+//                   ScaffoldMessenger.of(dialogContext).showSnackBar(
+//                     const SnackBar(
+//                       content: Text('Failed to capture signature'),
+//                       backgroundColor: Colors.red,
+//                     ),
+//                   );
+//                   return;
+//                 }
+
+//                 Navigator.pop(
+//                   dialogContext,
+//                   _ManagerInfoTemp(
+//                     name: nameController.text.trim(),
+//                     designation: designationController.text.trim(),
+//                     signatureBytes: signatureBytes,
+//                   ),
+//                 );
+//               },
+//               child: const Text('Next', style: TextStyle(color: Colors.white)),
+//             ),
+//           ],
+//         );
+//       },
+//     );
+
+//     return result;
+//   }
+
+//   Future<_ClockOutTemp?> _collectClockOutFormDialog(
+//     BuildContext context, {
+//     required String title,
+//     required String message,
+//     required bool needsReason,
+//     required String signouttype,
+//   }) async {
+//     final TextEditingController breakTimeController = TextEditingController();
+//     final TextEditingController reasonController = TextEditingController();
+
+//     final result = await showDialog<_ClockOutTemp>(
+//       context: context,
+//       barrierDismissible: false,
+//       builder:
+//           (dialogContext) => AlertDialog(
+//             title: Text(title),
+//             content: SingleChildScrollView(
+//               child: Column(
+//                 mainAxisSize: MainAxisSize.min,
+//                 crossAxisAlignment: CrossAxisAlignment.start,
+//                 children: [
+//                   Text(message, style: const TextStyle(fontSize: 14)),
+//                   const SizedBox(height: 16),
+//                   const Text(
+//                     'Break Time (minutes)',
+//                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+//                   ),
+//                   const SizedBox(height: 8),
+//                   TextField(
+//                     controller: breakTimeController,
+//                     keyboardType: TextInputType.number,
+//                     decoration: const InputDecoration(
+//                       border: OutlineInputBorder(),
+//                       hintText: 'e.g., 30',
+//                       prefixIcon: Icon(Icons.access_time),
+//                     ),
+//                   ),
+//                   if (needsReason) ...[
+//                     const SizedBox(height: 16),
+//                     Text(
+//                       'Reason for ${signouttype == 'early' ? 'Early' : 'Late'} Clock-Out',
+//                       style: const TextStyle(
+//                         fontWeight: FontWeight.bold,
+//                         fontSize: 14,
+//                       ),
+//                     ),
+//                     const SizedBox(height: 8),
+//                     TextField(
+//                       controller: reasonController,
+//                       maxLines: 3,
+//                       decoration: const InputDecoration(
+//                         border: OutlineInputBorder(),
+//                         hintText: 'Enter your reason here...',
+//                       ),
+//                     ),
+//                   ],
+//                 ],
+//               ),
+//             ),
+//             actions: [
+//               TextButton(
+//                 onPressed: () => Navigator.pop(dialogContext, null),
+//                 child: const Text('Cancel'),
+//               ),
+//               ElevatedButton(
+//                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+//                 onPressed: () {
+//                   if (breakTimeController.text.trim().isEmpty) {
+//                     ScaffoldMessenger.of(dialogContext).showSnackBar(
+//                       const SnackBar(content: Text('Please enter break time')),
+//                     );
+//                     return;
+//                   }
+
+//                   if (needsReason && reasonController.text.trim().isEmpty) {
+//                     ScaffoldMessenger.of(dialogContext).showSnackBar(
+//                       const SnackBar(content: Text('Please enter a reason')),
+//                     );
+//                     return;
+//                   }
+
+//                   final breakTime = breakTimeController.text.trim();
+//                   final reason =
+//                       needsReason ? reasonController.text.trim() : null;
+
+//                   Navigator.pop(
+//                     dialogContext,
+//                     _ClockOutTemp(breakTime: breakTime, reason: reason),
+//                   );
+//                 },
+//                 child: const Text(
+//                   'Next',
+//                   style: TextStyle(color: Colors.white),
+//                 ),
+//               ),
+//             ],
+//           ),
+//     );
+
+//     return result;
+//   }
+
+//   Future<bool> _showFinalReviewDialog(
+//     BuildContext context, {
+//     required _ManagerInfoTemp managerInfo,
+//     required _ClockOutTemp clockOutForm,
+//     required String signouttype,
+//     required String outTime,
+//   }) async {
+//     final String scheduledStart =
+//         widget.time.split(' - ').isNotEmpty ? widget.time.split(' - ')[0] : '';
+
+//     return await showDialog<bool>(
+//           context: context,
+//           barrierDismissible: false,
+//           builder:
+//               (dialogContext) => AlertDialog(
+//                 title: const Text('Review & Submit'),
+//                 content: SingleChildScrollView(
+//                   child: Column(
+//                     mainAxisSize: MainAxisSize.min,
+//                     crossAxisAlignment: CrossAxisAlignment.start,
+//                     children: [
+//                       const Text(
+//                         'Please review the details before submitting.',
+//                         style: TextStyle(fontSize: 14),
+//                       ),
+//                       const SizedBox(height: 12),
+//                       _buildReviewRow('Shift Time', widget.time),
+//                       _buildReviewRow('Clock-In (scheduled)', scheduledStart),
+//                       _buildReviewRow('Clock-Out', outTime),
+//                       const SizedBox(height: 12),
+//                       const Divider(),
+//                       const SizedBox(height: 8),
+//                       const Text(
+//                         'Manager Info',
+//                         style: TextStyle(
+//                           fontWeight: FontWeight.bold,
+//                           fontSize: 14,
+//                         ),
+//                       ),
+//                       const SizedBox(height: 8),
+//                       _buildReviewRow('Name', managerInfo.name),
+//                       _buildReviewRow('Designation', managerInfo.designation),
+//                       const SizedBox(height: 12),
+//                       const Divider(),
+//                       const SizedBox(height: 8),
+//                       const Text(
+//                         'Clock-Out Details',
+//                         style: TextStyle(
+//                           fontWeight: FontWeight.bold,
+//                           fontSize: 14,
+//                         ),
+//                       ),
+//                       const SizedBox(height: 8),
+//                       _buildReviewRow(
+//                         'Sign-out Type',
+//                         signouttype.toUpperCase(),
+//                       ),
+//                       _buildReviewRow(
+//                         'Break (minutes)',
+//                         clockOutForm.breakTime,
+//                       ),
+//                       if (clockOutForm.reason != null &&
+//                           clockOutForm.reason!.isNotEmpty)
+//                         _buildReviewRow('Reason', clockOutForm.reason!),
+//                       const SizedBox(height: 8),
+//                       const Text(
+//                         'If you press Cancel, Manager Info and Clock-Out will not be saved.',
+//                         style: TextStyle(fontSize: 12, color: Colors.redAccent),
+//                       ),
+//                     ],
+//                   ),
+//                 ),
+//                 actions: [
+//                   TextButton(
+//                     onPressed: () => Navigator.pop(dialogContext, false),
+//                     child: const Text('Cancel'),
+//                   ),
+//                   ElevatedButton(
+//                     style: ElevatedButton.styleFrom(
+//                       backgroundColor: primaryColor,
+//                     ),
+//                     onPressed: () => Navigator.pop(dialogContext, true),
+//                     child: const Text(
+//                       'Submit',
+//                       style: TextStyle(color: Colors.white),
+//                     ),
+//                   ),
+//                 ],
+//               ),
+//         ) ??
+//         false;
+//   }
+
+//   Widget _buildReviewRow(String label, String value) {
+//     return Padding(
+//       padding: const EdgeInsets.only(bottom: 4.0),
+//       child: Row(
+//         crossAxisAlignment: CrossAxisAlignment.start,
+//         children: [
+//           SizedBox(
+//             width: 120,
+//             child: Text(
+//               '$label:',
+//               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+//             ),
+//           ),
+//           Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+//         ],
+//       ),
+//     );
+//   }
+// }
+
+// // Simple internal holder classes for dialog data
+// class _ManagerInfoTemp {
+//   final String name;
+//   final String designation;
+//   final Uint8List signatureBytes;
+
+//   _ManagerInfoTemp({
+//     required this.name,
+//     required this.designation,
+//     required this.signatureBytes,
+//   });
+// }
+
+// class _ClockOutTemp {
+//   final String breakTime;
+//   final String? reason;
+
+//   _ClockOutTemp({required this.breakTime, this.reason});
+// }

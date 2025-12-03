@@ -2,9 +2,12 @@ import 'dart:async';
 import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/screen/shift_managmentscreen.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_bloc.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_state.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/presentation/widget/admin_drawer.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/presentation/widget/dashboard_tile.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/presentation/widget/date_time.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/widget/notification_uipage.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/widget/dashboard_widgets.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_bloc.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_state.dart';
@@ -132,6 +135,55 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
         ),
         actions: [
+          BlocBuilder<NotificationBloc, NotificationState>(
+            builder: (context, notificationState) {
+              int unreadCount = 0;
+
+              if (notificationState is NotificationLoaded) {
+                unreadCount = notificationState.unreadCount;
+              }
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 12.0),
+                child: Stack(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.notifications, color: kWhite, size: 26),
+                      onPressed: () {
+                        NavigatorHelper.push(NotificationPage());
+                      },
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          child: Center(
+                            child: Text(
+                              unreadCount > 99 ? '99+' : unreadCount.toString(),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, state) {
               String userName = "User";
