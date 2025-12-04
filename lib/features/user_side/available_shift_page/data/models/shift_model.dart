@@ -10,36 +10,41 @@ class ShiftModel extends ShiftEntity {
     required super.notes,
     required super.location,
     required super.date,
+    super.status,
+    super.adminApprove,
   });
 
   factory ShiftModel.fromJson(Map<String, dynamic> json) {
-    // Combine fromtime and totime into one display string
     final fromTime = json['fromtime'] ?? '';
     final toTime = json['totime'] ?? '';
     final formattedTime = '$fromTime - $toTime';
 
-    // Build readable location
     final location = [
       json['street'] ?? '',
       json['suburb'] ?? '',
       json['state'] ?? '',
     ].where((part) => part.isNotEmpty).join(', ');
 
-    print(
-      'Mapped shift: id=${json['id']}, org=${json['organization_name']}, time=$formattedTime',
-    );
     String formattedDates = '';
-    if (json['date'] != null && json['date'].isNotEmpty) {
+    if (json['date'] != null && json['date'].toString().isNotEmpty) {
       try {
         final dateTime = DateTime.parse(json['date']);
-        formattedDates = DateFormat(
-          'dd MMM yyyy',
-        ).format(dateTime); // e.g., "25 Nov 2025"
-        // Or use DateFormat('dd/MM/yyyy') for "25/11/2025"
+        formattedDates = DateFormat('dd MMM yyyy').format(dateTime);
       } catch (e) {
-        formattedDates = json['date']; // Fallback to original if parsing fails
-        print('Date parsing error: $e');
+        formattedDates = json['date'].toString();
       }
+    }
+
+    final rawStatus = (json['status'] ?? 'un-confirm').toString();
+    final adminApprove = (json['adminaprrove'] ?? '').toString();
+
+    String uiStatus;
+    if (adminApprove == 'pending' || rawStatus == 'pending') {
+      uiStatus = 'pending';
+    } else if (rawStatus == 'confirmed' && adminApprove == 'accepted') {
+      uiStatus = 'accepted';
+    } else {
+      uiStatus = 'un-confirm';
     }
 
     return ShiftModel(
@@ -50,6 +55,22 @@ class ShiftModel extends ShiftEntity {
       duration: json['break'] != null ? '${json['break']} mins break' : '',
       notes: json['notes'] ?? '',
       location: location,
+      status: uiStatus,
+      adminApprove: adminApprove,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'date': date,
+      'time': time,
+      'duration': duration,
+      'organization_name': agencyName,
+      'notes': notes,
+      'location': location,
+      'status': status,
+      'adminaprrove': adminApprove,
+    };
   }
 }

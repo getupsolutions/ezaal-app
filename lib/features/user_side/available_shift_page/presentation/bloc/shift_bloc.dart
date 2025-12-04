@@ -10,12 +10,14 @@ class ClaimedShift {
   final String timeRange;
   final DateTime startDateTime;
   final DateTime endDateTime;
+  final String status; // 'pending', 'approved', 'rejected'
 
   ClaimedShift({
     required this.date,
     required this.timeRange,
     required this.startDateTime,
     required this.endDateTime,
+    this.status = 'pending',
   });
 }
 
@@ -39,7 +41,6 @@ class ShiftBloc extends Bloc<ShiftEvent, ShiftState> {
       } catch (e) {
         print('Error fetching shifts: $e');
 
-        // ✅ Check if session expired
         if (e.toString().contains('Session expired')) {
           emit(ShiftSessionExpired());
         } else {
@@ -50,7 +51,7 @@ class ShiftBloc extends Bloc<ShiftEvent, ShiftState> {
 
     on<ClaimShift>((event, emit) async {
       try {
-        // Parse the shift time and date
+        // Check for time conflicts
         final conflictingShift = _checkTimeConflict(
           event.shiftDate,
           event.shiftTime,
@@ -61,7 +62,8 @@ class ShiftBloc extends Bloc<ShiftEvent, ShiftState> {
             ShiftClaimError(
               'You have already claimed a shift during this time!\n\n'
               'Existing shift: ${conflictingShift.date}\n'
-              'Time: ${conflictingShift.timeRange}\n\n',
+              'Time: ${conflictingShift.timeRange}\n'
+              'Status: ${conflictingShift.status == 'pending' ? 'Pending Approval' : 'Approved'}\n',
             ),
           );
 
@@ -71,24 +73,31 @@ class ShiftBloc extends Bloc<ShiftEvent, ShiftState> {
           return;
         }
 
-        // Claim the shift
+        // Claim the shift - this sets status to 'pending' in backend
         await claimShiftUseCase(event.shiftId);
 
-        // Parse and store the claimed shift details
+        // Track the shift as pending
         final parsedShift = _parseShiftDateTime(
           event.shiftDate,
           event.shiftTime,
+          status: 'pending',
         );
         if (parsedShift != null) {
           _claimedShifts.add(parsedShift);
           print(
-            '✅ Shift claimed and tracked: ${event.shiftDate} ${event.shiftTime}',
+            '✅ Shift claimed (pending approval): ${event.shiftDate} ${event.shiftTime}',
           );
         }
 
-        emit(ShiftClaimSuccess());
+        // Show pending approval message
+        emit(
+          ShiftClaimPending(
+            message:
+                'Your shift claim has been sent to admin for approval. You will be notified once approved.',
+          ),
+        );
 
-        // Re-fetch after claiming
+        // Re-fetch shifts to update the list
         final shifts = await getShiftsUseCase();
         emit(ShiftLoaded(shifts));
       } catch (e) {
@@ -101,28 +110,59 @@ class ShiftBloc extends Bloc<ShiftEvent, ShiftState> {
         }
       }
     });
+
+    // New event to update shift status when admin approves
+    on<UpdateShiftStatus>((event, emit) async {
+      final shiftIndex = _claimedShifts.indexWhere(
+        (shift) =>
+            shift.date == event.date && shift.timeRange == event.timeRange,
+      );
+
+      if (shiftIndex != -1) {
+        final oldShift = _claimedShifts[shiftIndex];
+        _claimedShifts[shiftIndex] = ClaimedShift(
+          date: oldShift.date,
+          timeRange: oldShift.timeRange,
+          startDateTime: oldShift.startDateTime,
+          endDateTime: oldShift.endDateTime,
+          status: event.status,
+        );
+
+        if (event.status == 'approved') {
+          emit(
+            ShiftClaimSuccess(
+              message: 'Your shift has been approved by admin!',
+            ),
+          );
+        }
+
+        // Re-fetch shifts
+        final shifts = await getShiftsUseCase();
+        emit(ShiftLoaded(shifts));
+      }
+    });
   }
 
   /// Parse shift date and time into a ClaimedShift object
-  ClaimedShift? _parseShiftDateTime(String date, String timeRange) {
+  ClaimedShift? _parseShiftDateTime(
+    String date,
+    String timeRange, {
+    String status = 'pending',
+  }) {
     try {
-      // Extract start and end times from format "22:00 - 06:00" or "14:00 - 22:00"
       final timeParts = timeRange.split(' - ');
       if (timeParts.length != 2) return null;
 
       final startTimeStr = timeParts[0].trim();
       final endTimeStr = timeParts[1].trim();
 
-      // Parse the date (format: "30 Nov 2025" or "02 Dec 2025")
       DateTime baseDate;
       try {
         baseDate = DateFormat('dd MMM yyyy').parse(date);
       } catch (e) {
-        // Try alternative format
         baseDate = DateFormat('dd/MM/yyyy').parse(date);
       }
 
-      // Parse start time
       final startTimeParts = startTimeStr.split(':');
       final startHour = int.parse(startTimeParts[0]);
       final startMinute = int.parse(startTimeParts[1]);
@@ -135,7 +175,6 @@ class ShiftBloc extends Bloc<ShiftEvent, ShiftState> {
         startMinute,
       );
 
-      // Parse end time
       final endTimeParts = endTimeStr.split(':');
       final endHour = int.parse(endTimeParts[0]);
       final endMinute = int.parse(endTimeParts[1]);
@@ -148,7 +187,6 @@ class ShiftBloc extends Bloc<ShiftEvent, ShiftState> {
         endMinute,
       );
 
-      // If end time is before start time, it means the shift goes into the next day
       if (endDateTime.isBefore(startDateTime)) {
         endDateTime = endDateTime.add(Duration(days: 1));
       }
@@ -158,6 +196,7 @@ class ShiftBloc extends Bloc<ShiftEvent, ShiftState> {
         timeRange: timeRange,
         startDateTime: startDateTime,
         endDateTime: endDateTime,
+        status: status,
       );
     } catch (e) {
       print('Error parsing shift date/time: $e');
@@ -171,11 +210,9 @@ class ShiftBloc extends Bloc<ShiftEvent, ShiftState> {
     if (newShift == null) return null;
 
     for (final claimedShift in _claimedShifts) {
-      // Check for time overlap
-      // Two shifts overlap if:
-      // 1. New shift starts during claimed shift
-      // 2. New shift ends during claimed shift
-      // 3. New shift completely encompasses claimed shift
+      // Only check conflicts with pending or approved shifts
+      if (claimedShift.status == 'rejected') continue;
+
       final hasOverlap =
           (newShift.startDateTime.isBefore(claimedShift.endDateTime) &&
               newShift.endDateTime.isAfter(claimedShift.startDateTime));

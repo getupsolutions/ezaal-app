@@ -1,4 +1,11 @@
 import 'package:ezaal/core/token_manager.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/RemoteDataSource/admin_shift_datasource.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/respositoryImpl/adminshift_repositoryimpl.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/enitity/approve_pendingclaim.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/respository_impl/adminshift_repository.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/adminshift_usecase.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/approve_pendingshiftclaim.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/data/data_source/managerinfo_datasource.dart';
 import 'package:ezaal/features/user_side/available_shift_page/data/data_source/shift_remote_datasource.dart';
 import 'package:ezaal/features/user_side/available_shift_page/data/repository/managerinfo_repositoryimpl.dart';
@@ -73,6 +80,12 @@ Future<void> init() async {
       markAsReadUseCase: sl(),
     ),
   );
+  sl.registerFactory(
+    () => AdminShiftBloc(
+      getAdminShiftsForWeek: sl(),
+      approvePendingShiftClaims: sl(),
+    ),
+  );
 
   //! UseCases
   sl.registerLazySingleton(() => LoginUseCase(sl()));
@@ -90,6 +103,8 @@ Future<void> init() async {
   sl.registerLazySingleton(() => MarkAsReadUseCase(sl()));
   sl.registerLazySingleton(() => MarkAllAsReadUseCase(sl()));
   sl.registerLazySingleton(() => DeleteNotificationUseCase(sl()));
+  sl.registerLazySingleton(() => GetAdminShiftsForWeek(sl()));
+  sl.registerLazySingleton(() => ApprovePendingShiftClaimsUseCase(sl()));
 
   //! Repository
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl()));
@@ -108,6 +123,9 @@ Future<void> init() async {
   );
   sl.registerLazySingleton<NotificationRepository>(
     () => NotificationRepositoryImpl(sl()),
+  );
+  sl.registerLazySingleton<AdminShiftRepository>(
+    () => AdminShiftRepositoryImpl(sl()),
   );
 
   //! Data sources
@@ -135,5 +153,8 @@ Future<void> init() async {
   );
   sl.registerLazySingleton<NotificationRemoteDataSource>(
     () => NotificationRemoteDataSource(),
+  );
+  sl.registerLazySingleton<AdminShiftRemoteDataSource>(
+    () => AdminShiftRemoteDataSource(),
   );
 }

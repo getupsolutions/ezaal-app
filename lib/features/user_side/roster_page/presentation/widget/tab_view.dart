@@ -7,6 +7,7 @@ import 'package:ezaal/features/user_side/roster_page/presentation/widget/shimmer
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart'; // ✅ Added for formatting
 import '../bloc/roster_bloc.dart';
 
 class RosterTabView extends StatefulWidget {
@@ -55,7 +56,17 @@ class _RosterTabViewState extends State<RosterTabView>
     return allRosters.any((roster) => roster.date == dateString);
   }
 
-  // Shimmer Loading Widget for Roster Cards
+  /// ✅ Helper: convert "yyyy-MM-dd" → "dd MMM yyyy" (day month year)
+  String _formatDisplayDate(String rawDate) {
+    try {
+      final dt = DateTime.parse(rawDate);
+      // Change this pattern if you want full month name: 'dd MMMM yyyy'
+      return DateFormat('dd MMM yyyy').format(dt);
+    } catch (e) {
+      // Fallback to the raw value if parsing fails
+      return rawDate;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +265,8 @@ class _RosterTabViewState extends State<RosterTabView>
                           return Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: RosterCustomList(
-                              date: roster.date,
+                              // ✅ Date formatted as day month year
+                              date: _formatDisplayDate(roster.date),
                               day: roster.day,
                               time: roster.time,
                               location: roster.location,
@@ -307,7 +319,8 @@ class _RosterTabViewState extends State<RosterTabView>
                             print("Count is ${selectedRosters.length}");
                             final roster = selectedRosters[index];
                             return RosterCustomList(
-                              date: roster.date,
+                              // ✅ Date formatted as day month year
+                              date: _formatDisplayDate(roster.date),
                               day: roster.day,
                               time: roster.time,
                               location: roster.location,

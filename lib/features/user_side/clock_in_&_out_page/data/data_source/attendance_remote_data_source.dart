@@ -11,7 +11,7 @@ class AttendanceRemoteDataSource {
 
   Future<List<SlotModel>> getSlots() async {
     try {
-      // ✅ Check connectivity first
+      // ✅ 1) Check connectivity first
       final isOnline = await OfflineQueueService.isOnline();
 
       if (!isOnline) {
@@ -26,7 +26,7 @@ class AttendanceRemoteDataSource {
         }
       }
 
-      // ✅ Online - fetch from API
+      // ✅ 2) Online - fetch from API
       final accessToken = await TokenStorage.getAccessToken();
 
       final response = await http
@@ -40,13 +40,17 @@ class AttendanceRemoteDataSource {
           .timeout(
             const Duration(seconds: 10),
             onTimeout: () async {
-              // ✅ On timeout, return cached data
+              // ⏱️ On timeout, *actually* use cached data if present
               debugPrint('⏱️ API timeout - loading cached slots');
               final cached = await OfflineQueueService.getCachedSlots();
-              if (cached != null) {
-                throw TimeoutException('Using cached data');
+              if (cached != null && cached.isNotEmpty) {
+                debugPrint('📦 Using cached slots due to timeout');
+                return http.Response(jsonEncode({'data': cached}), 200);
               }
-              throw Exception('Connection timeout and no cache available');
+              // No cache → propagate timeout
+              throw TimeoutException(
+                'Connection timeout and no cache available',
+              );
             },
           );
 
@@ -56,17 +60,20 @@ class AttendanceRemoteDataSource {
       print("Response Body: ${response.body}");
       print("======================");
 
-      if (response.statusCode == 200 || response.statusCode == 404) {
+      // ---------- 3) Handle response codes ----------
+      if (response.statusCode == 200) {
+        // Normal success
         try {
           final jsonData = jsonDecode(response.body);
           final List<dynamic> data = jsonData['data'] ?? [];
 
           if (data.isEmpty) {
-            print("⚠️ No slots returned from API");
+            // 200 but empty data – you can decide to use cache or not
+            print("⚠️ 200 OK but no slots in data");
 
-            // ✅ Return cached data if available
             final cached = await OfflineQueueService.getCachedSlots();
             if (cached != null && cached.isNotEmpty) {
+              debugPrint('📦 Using cached slots (server returned empty list)');
               return cached.map((e) => SlotModel.fromJson(e)).toList();
             }
 
@@ -78,21 +85,52 @@ class AttendanceRemoteDataSource {
 
           return data.map((e) => SlotModel.fromJson(e)).toList();
         } catch (e) {
-          print("Error parsing response: $e");
+          print("Error parsing 200 response: $e");
 
-          // ✅ Return cached data on parse error
+          // ✅ Return cached data on parse error if available
           final cached = await OfflineQueueService.getCachedSlots();
           if (cached != null && cached.isNotEmpty) {
+            debugPrint('📦 Using cached slots due to parse error');
             return cached.map((e) => SlotModel.fromJson(e)).toList();
           }
 
           return [];
         }
-      } else {
-        throw Exception(
-          'Failed to load slots: ${response.statusCode} ${response.body}',
-        );
       }
+
+      if (response.statusCode == 404) {
+        // 🔴 SPECIAL CASE: Backend explicitly says "No slot available"
+        try {
+          final jsonData = jsonDecode(response.body);
+          final message = (jsonData['message'] ?? '').toString().toLowerCase();
+
+          if (message.contains('no slot available')) {
+            // ❗ DO NOT USE CACHE here – trust server
+            print("⚠️ No slots available from server (404). Ignoring cache.");
+            // Optional: clear old cache if you don't want stale shifts:
+            // await OfflineQueueService.clearCachedSlots();
+            return [];
+          }
+        } catch (e) {
+          print("Error parsing 404 response: $e");
+        }
+
+        // 404 for some other reason → treat as error, fall back to cache
+        debugPrint(
+          '⚠️ 404 from API (not \"No slot available\") - trying cache',
+        );
+        final cached = await OfflineQueueService.getCachedSlots();
+        if (cached != null && cached.isNotEmpty) {
+          debugPrint('📦 Using cached slots due to 404');
+          return cached.map((e) => SlotModel.fromJson(e)).toList();
+        }
+        return [];
+      }
+
+      // ---------- 4) Other error codes ----------
+      throw Exception(
+        'Failed to load slots: ${response.statusCode} ${response.body}',
+      );
     } catch (e) {
       print('❌ Error fetching slots: $e');
 

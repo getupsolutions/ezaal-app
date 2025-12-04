@@ -462,6 +462,19 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
     }
   }
 
+  /// Helper: get the base date of the shift (using shiftDate if available)
+  DateTime _getShiftBaseDate(DateTime now) {
+    if (widget.shiftDate == null || widget.shiftDate!.isEmpty) {
+      return DateTime(now.year, now.month, now.day);
+    }
+    try {
+      final parsed = DateTime.parse(widget.shiftDate!);
+      return DateTime(parsed.year, parsed.month, parsed.day);
+    } catch (_) {
+      return DateTime(now.year, now.month, now.day);
+    }
+  }
+
   void _onAttendanceStateChanged(BuildContext context, AttendanceState state) {
     if (state is AttendanceFailure) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -808,7 +821,7 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
     );
   }
 
-  // ---------- CLOCK IN (fixed) ----------
+  // ---------- CLOCK IN (updated, date-aware) ----------
 
   Future<void> _handleClockIn(BuildContext context) async {
     // ✅ Capture bloc before any dialogs so we don't depend on widget being mounted later
@@ -838,11 +851,14 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
     if (parts.length < 2) return;
 
     try {
+      // Base date = shiftDate if provided, else today
+      final baseDate = _getShiftBaseDate(now);
+
       final startTime = DateFormat('HH:mm:ss').parse(parts[0]);
       final startDateTime = DateTime(
-        now.year,
-        now.month,
-        now.day,
+        baseDate.year,
+        baseDate.month,
+        baseDate.day,
         startTime.hour,
         startTime.minute,
         startTime.second,
@@ -851,12 +867,19 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
       String signintype = 'ontime';
       bool needsReason = false;
 
+      // RULE:
+      // - Before start => early
+      // - After start  => late
+      // - Exactly at start => ontime
       if (now.isBefore(startDateTime)) {
         signintype = 'early';
         needsReason = true;
-      } else if (now.isAfter(startDateTime.add(const Duration(minutes: 15)))) {
+      } else if (now.isAfter(startDateTime)) {
         signintype = 'late';
         needsReason = true;
+      } else {
+        signintype = 'ontime';
+        needsReason = false;
       }
 
       if (needsReason) {
@@ -891,7 +914,7 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
     }
   }
 
-  // ---------- FULL CLOCK OUT FLOW (WIZARD DIALOG) ----------
+  // ---------- FULL CLOCK OUT FLOW (WIZARD DIALOG, updated, overnight-aware) ----------
 
   Future<void> _handleFullClockOutFlow(BuildContext context) async {
     final now = DateTime.now();
@@ -905,15 +928,37 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
 
     DateTime endDateTime;
     try {
+      // Base date = shiftDate if provided, else today
+      final baseDate = _getShiftBaseDate(now);
+
+      final startTime = DateFormat('HH:mm:ss').parse(parts[0]);
       final endTime = DateFormat('HH:mm:ss').parse(parts[1]);
-      endDateTime = DateTime(
-        now.year,
-        now.month,
-        now.day,
+
+      final startDateTime = DateTime(
+        baseDate.year,
+        baseDate.month,
+        baseDate.day,
+        startTime.hour,
+        startTime.minute,
+        startTime.second,
+      );
+
+      // End on same base date
+      DateTime tempEnd = DateTime(
+        baseDate.year,
+        baseDate.month,
+        baseDate.day,
         endTime.hour,
         endTime.minute,
         endTime.second,
       );
+
+      // Overnight shift: if end time <= start time, move end to next day
+      if (!endTime.isAfter(startTime)) {
+        tempEnd = tempEnd.add(const Duration(days: 1));
+      }
+
+      endDateTime = tempEnd;
     } catch (e) {
       debugPrint('❌ Time parse error in _handleFullClockOutFlow: $e');
       if (mounted) {
@@ -930,12 +975,21 @@ class _ClockinShiftCardState extends State<ClockinShiftCard> {
     String signouttype = 'ontime';
     bool needsReason = false;
 
-    if (now.isBefore(endDateTime.subtract(const Duration(minutes: 15)))) {
+    // RULE with 1-minute grace:
+    // - <= endTime - 1 min => early
+    // - >= endTime + 1 min => late
+    // - otherwise (within +/- 1 min) => ontime
+    final diff = now.difference(endDateTime);
+
+    if (diff.inMinutes <= -1) {
       signouttype = 'early';
       needsReason = true;
-    } else if (now.isAfter(endDateTime.add(const Duration(minutes: 15)))) {
+    } else if (diff.inMinutes >= 1) {
       signouttype = 'late';
       needsReason = true;
+    } else {
+      signouttype = 'ontime';
+      needsReason = false;
     }
 
     if (!mounted) return;

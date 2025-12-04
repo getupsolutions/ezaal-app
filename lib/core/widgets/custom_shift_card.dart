@@ -14,6 +14,7 @@ class ShiftCardWidget extends StatelessWidget {
     required this.location,
     this.buttonText = 'Claim Shift',
     this.onButtonPressed,
+    this.isPending = false,
   });
 
   final double screenHeight;
@@ -26,12 +27,12 @@ class ShiftCardWidget extends StatelessWidget {
   final String location;
   final String buttonText;
   final VoidCallback? onButtonPressed;
+  final bool isPending;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(10),
-      // height: screenHeight * 0.15,
+      padding: const EdgeInsets.all(10),
       width: screenWidth * 0.9,
       decoration: BoxDecoration(
         border: Border.all(),
@@ -39,7 +40,6 @@ class ShiftCardWidget extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Text(
             time,
@@ -56,7 +56,7 @@ class ShiftCardWidget extends StatelessWidget {
                 size: screenHeight * 0.02,
                 color: kBlack,
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text(
                 date,
                 style: TextStyle(fontWeight: FontWeight.w600, color: kBlack),
@@ -71,7 +71,7 @@ class ShiftCardWidget extends StatelessWidget {
               Expanded(
                 child: Text(
                   agencyName,
-                  style: TextStyle(fontWeight: FontWeight.normal),
+                  style: const TextStyle(fontWeight: FontWeight.normal),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -89,7 +89,7 @@ class ShiftCardWidget extends StatelessWidget {
                     (duration?.isNotEmpty ?? false)
                         ? duration!
                         : 'Duration not available',
-                    style: TextStyle(fontWeight: FontWeight.normal),
+                    style: const TextStyle(fontWeight: FontWeight.normal),
                   ),
                 ],
               ),
@@ -97,14 +97,14 @@ class ShiftCardWidget extends StatelessWidget {
                 height: screenHeight * 0.04,
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    backgroundColor: primaryColor,
+                    backgroundColor: isPending ? Colors.grey : primaryColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: onButtonPressed,
+                  onPressed: isPending ? null : onButtonPressed,
                   child: Text(
-                    buttonText,
+                    isPending ? 'Shift Pending' : buttonText,
                     style: TextStyle(
                       fontSize: screenHeight * 0.011,
                       color: kWhite,

@@ -16,7 +16,10 @@ class ShiftError extends ShiftState {
   ShiftError(this.message);
 }
 
-class ShiftClaimSuccess extends ShiftState {}
+class ShiftClaimSuccess extends ShiftState {
+  final String message;
+  ShiftClaimSuccess({this.message = 'Shift claimed successfully!'});
+}
 
 class ShiftClaimError extends ShiftState {
   final String message;
@@ -24,3 +27,8 @@ class ShiftClaimError extends ShiftState {
 }
 
 class ShiftSessionExpired extends ShiftState {}
+
+class ShiftClaimPending extends ShiftState {
+  final String message;
+  ShiftClaimPending({this.message = 'Shift claim sent for admin approval'});
+}

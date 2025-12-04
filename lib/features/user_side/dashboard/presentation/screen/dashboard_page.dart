@@ -1,8 +1,13 @@
 import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/widgets/custom_drawer.dart';
+import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/dashboard_state.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_bloc.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_event.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_state.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/widget/dashboard_widgets.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/widget/notification_uipage.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_bloc.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_state.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +22,13 @@ class DashboardView extends StatefulWidget {
 
 class _DashboardViewState extends State<DashboardView> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch unread notification count
+    context.read<NotificationBloc>().add(FetchUnreadCount());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +47,6 @@ class _DashboardViewState extends State<DashboardView> {
         ),
         backgroundColor: primaryDarK,
         elevation: 0,
-        // leading: const Icon(Icons.menu, color: Colors.black87),
         title:
             isSmallScreen
                 ? Center(
@@ -81,13 +92,13 @@ class _DashboardViewState extends State<DashboardView> {
                   ],
                 ),
         actions: [
+          // Notification Bell with Badge
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, state) {
               String userName = 'User';
               String? photoUrl;
 
               if (state is AuthSuccess) {
-                // Trim and capitalize full name properly
                 userName = state.user.name.trim();
                 photoUrl = state.user.photoUrl;
               }
@@ -96,9 +107,7 @@ class _DashboardViewState extends State<DashboardView> {
                 padding: const EdgeInsets.only(right: 16.0),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(50),
-                  onTap: () {
-                    // You can navigate to Profile Page or show a menu here later
-                  },
+                  onTap: () {},
                   hoverColor: Colors.grey.withOpacity(0.1),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -195,7 +204,6 @@ class _DashboardViewState extends State<DashboardView> {
                 padding: EdgeInsets.all(isSmallScreen ? 12.0 : 24.0),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    // Desktop: 3 columns
                     if (constraints.maxWidth > 900) {
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,9 +215,7 @@ class _DashboardViewState extends State<DashboardView> {
                           Expanded(child: buildClockInOutCard(context)),
                         ],
                       );
-                    }
-                    // Tablet: 2 columns
-                    else if (constraints.maxWidth > 600) {
+                    } else if (constraints.maxWidth > 600) {
                       return SingleChildScrollView(
                         child: Column(
                           children: [
@@ -228,9 +234,7 @@ class _DashboardViewState extends State<DashboardView> {
                           ],
                         ),
                       );
-                    }
-                    // Mobile: 1 column
-                    else {
+                    } else {
                       return SingleChildScrollView(
                         child: Column(
                           children: [
