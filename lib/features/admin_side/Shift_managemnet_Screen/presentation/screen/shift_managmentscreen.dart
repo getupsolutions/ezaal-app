@@ -6,6 +6,7 @@ import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/b
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_state.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shiftevent.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/screen/add_shift_screen.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/screen/shift_view_page.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/widget/shift_filter_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -21,6 +22,18 @@ class ShiftManagmentscreen extends StatefulWidget {
 class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
   DateTime selectedWeekStart = DateTime.now();
   int selectedDayIndex = 0;
+
+  // ⭐ NEW: cache last loaded shifts so UI can still show them
+  AdminShiftLoaded? _cachedShiftState;
+
+  String _formatShiftDate(String raw) {
+    try {
+      final d = DateTime.parse(raw); // server gives yyyy-MM-dd
+      return DateFormat('dd/MM/yyyy').format(d);
+    } catch (_) {
+      return raw; // fallback if parsing fails
+    }
+  }
 
   @override
   void initState() {
@@ -72,8 +85,8 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
 
   String _getWeekRangeText() {
     final weekEnd = selectedWeekStart.add(const Duration(days: 6));
-    return '${DateFormat('dd MMM').format(selectedWeekStart)} - '
-        '${DateFormat('dd MMM yyyy').format(weekEnd)}';
+    return '${DateFormat('dd/MM/yyyy').format(selectedWeekStart)} - '
+        '${DateFormat('dd/MM/yyyy').format(weekEnd)}';
   }
 
   @override
@@ -97,7 +110,8 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
             final screenWidth = constraints.maxWidth;
             final screenHeight = constraints.maxHeight;
 
-            final contentWidth = screenWidth > 700 ? 700.0 : screenWidth;
+            // Center content and keep a nice readable width on large screens
+            final contentWidth = screenWidth > 900 ? 900.0 : screenWidth;
 
             final isTablet = screenWidth >= 600 && screenWidth < 1024;
             final isDesktop = screenWidth >= 1024;
@@ -115,7 +129,7 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                   children: [
                     buildWeekSelector(contentWidth, screenHeight, _fontScale),
                     buildDayTabs(contentWidth, screenHeight, _fontScale),
-                    _buildScrollIndicator(contentWidth),
+                    const SizedBox(height: 10),
                     Expanded(
                       child: BlocConsumer<AdminShiftBloc, AdminShiftState>(
                         listener: (context, state) {
@@ -127,6 +141,10 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                                 ),
                               ),
                             );
+                          } else if (state is AdminShiftActionSuccess) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(state.message)),
+                            );
                           } else if (state is AdminShiftError) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -135,14 +153,19 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                               ),
                             );
                           }
+                          // 🔥 When Add/Edit shift succeeds, reload current week
+                          else if (state is AddEditShiftSuccess) {
+                            _loadWeek();
+                          }
+
+                          // ⭐ NEW: whenever we get a loaded state, cache it
+                          if (state is AdminShiftLoaded) {
+                            _cachedShiftState = state;
+                          }
                         },
                         builder: (context, state) {
-                          if (state is AdminShiftLoading ||
-                              state is AdminShiftInitial) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          } else if (state is AdminShiftError) {
+                          // 1) Handle hard error first
+                          if (state is AdminShiftError) {
                             return Center(
                               child: Padding(
                                 padding: const EdgeInsets.all(16.0),
@@ -156,51 +179,75 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                                 ),
                               ),
                             );
-                          } else if (state is AdminShiftLoaded) {
-                            // This also covers AdminShiftApproving and AdminShiftApprovedSuccessfully
-                            final selectedDate =
-                                _getWeekDays()[selectedDayIndex];
-                            final selectedDayStr = DateFormat(
-                              'yyyy-MM-dd',
-                            ).format(selectedDate);
+                          }
 
-                            final dayShifts =
-                                state.shifts
-                                    .where((s) => s.date == selectedDayStr)
-                                    .toList();
+                          // 2) Decide which state to use for displaying shifts
+                          AdminShiftLoaded? displayState;
+                          if (state is AdminShiftLoaded) {
+                            displayState = state;
+                          } else {
+                            // When state is ShiftMasters*, AddEdit*, etc,
+                            // fall back to the last known good shift list
+                            displayState = _cachedShiftState;
+                          }
 
-                            if (dayShifts.isEmpty) {
-                              return Column(
-                                children: [
-                                  Expanded(
-                                    child: Center(
-                                      child: Text(
-                                        'No shifts for this day',
-                                        style: TextStyle(
-                                          fontSize: _fontScale(14),
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  _buildAddShiftButton(
-                                    contentWidth,
-                                    screenHeight,
-                                    _fontScale,
-                                  ),
-                                ],
-                              );
-                            }
-
-                            return _buildShiftsList(
-                              contentWidth,
-                              screenHeight,
-                              dayShifts,
-                              _fontScale,
+                          // 3) If we are loading AND we have nothing cached yet → pure loader
+                          if ((state is AdminShiftLoading ||
+                                  state is AdminShiftInitial) &&
+                              displayState == null) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
                             );
                           }
 
-                          return const SizedBox.shrink();
+                          // 4) If we still have no displayState, show loader
+                          if (displayState == null) {
+                            // e.g. app just started and nothing loaded yet
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+
+                          // 5) We have a displayState with shifts, render UI
+                          final selectedDate = _getWeekDays()[selectedDayIndex];
+                          final selectedDayStr = DateFormat(
+                            'yyyy-MM-dd',
+                          ).format(selectedDate);
+
+                          final dayShifts =
+                              displayState.shifts
+                                  .where((s) => s.date == selectedDayStr)
+                                  .toList();
+
+                          if (dayShifts.isEmpty) {
+                            return Column(
+                              children: [
+                                Expanded(
+                                  child: Center(
+                                    child: Text(
+                                      'No shifts for this day',
+                                      style: TextStyle(
+                                        fontSize: _fontScale(14),
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                buildAddShiftButton(
+                                  contentWidth,
+                                  screenHeight,
+                                  _fontScale,
+                                ),
+                              ],
+                            );
+                          }
+
+                          return _buildShiftsList(
+                            contentWidth,
+                            screenHeight,
+                            dayShifts,
+                            _fontScale,
+                          );
                         },
                       ),
                     ),
@@ -214,7 +261,7 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
     );
   }
 
-  // ---------- UI Helpers (unchanged from your version except for small polish) ----------
+  // ---------- UI Helpers ----------
 
   Widget buildWeekSelector(
     double width,
@@ -323,58 +370,48 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
     );
   }
 
-  Widget _buildScrollIndicator(double width) {
-    return Container(
-      height: 2,
-      margin: EdgeInsets.symmetric(horizontal: width * 0.02),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left, size: 20),
-            onPressed: () {},
-            padding: EdgeInsets.zero,
-          ),
-          Expanded(child: Container(height: 2, color: Colors.grey[300])),
-          IconButton(
-            icon: const Icon(Icons.chevron_right, size: 20),
-            onPressed: () {},
-            padding: EdgeInsets.zero,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildShiftsList(
     double width,
     double height,
     List<ShiftItem> shifts,
     double Function(double) fontScale,
   ) {
-    return ListView.builder(
-      padding: EdgeInsets.all(width * 0.02),
-      itemCount: shifts.length + 1,
-      itemBuilder: (context, index) {
-        if (index == shifts.length) {
-          return _buildAddShiftButton(width, height, fontScale);
-        }
-        return Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: width),
-            child: _buildShiftCard(shifts[index], width, height, fontScale),
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            padding: EdgeInsets.all(width * 0.02),
+            itemCount: shifts.length,
+            itemBuilder: (context, index) {
+              return Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: width),
+                  child: buildShiftCard(
+                    shifts[index],
+                    width,
+                    height,
+                    fontScale,
+                  ),
+                ),
+              );
+            },
           ),
-        );
-      },
+        ),
+        buildAddShiftButton(width, height, fontScale),
+      ],
     );
   }
 
-  Widget _buildShiftCard(
+  Widget buildShiftCard(
     ShiftItem shift,
     double width,
     double height,
     double Function(double) fontScale,
   ) {
+    final hasStaff = shift.staffName.isNotEmpty;
+    final isCompleted = shift.hasClockInOut;
+
     return Container(
       margin: EdgeInsets.only(bottom: height * 0.015),
       decoration: BoxDecoration(
@@ -390,6 +427,7 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
       ),
       child: Column(
         children: [
+          // Header row
           Container(
             padding: EdgeInsets.symmetric(
               horizontal: width * 0.04,
@@ -424,6 +462,7 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
               ],
             ),
           ),
+          // Location + date
           Container(
             padding: EdgeInsets.symmetric(
               horizontal: width * 0.04,
@@ -451,7 +490,7 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  shift.date,
+                  _formatShiftDate(shift.date),
                   style: TextStyle(
                     color: kWhite,
                     fontSize: fontScale(13),
@@ -461,11 +500,14 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
               ],
             ),
           ),
+
+          // Body
           Padding(
             padding: EdgeInsets.all(width * 0.04),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // left info
                 Flexible(
                   flex: 3,
                   child: Column(
@@ -480,9 +522,7 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        shift.staffName.isEmpty
-                            ? 'Unassigned'
-                            : shift.staffName,
+                        hasStaff ? shift.staffName : '',
                         style: TextStyle(
                           fontSize: fontScale(13),
                           color: primaryColor,
@@ -500,58 +540,21 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                     ],
                   ),
                 ),
+
+                // right actions
                 Flexible(
                   flex: 2,
                   child: Wrap(
                     spacing: 4,
-                    children: [
-                      if (shift.hasEdit)
-                        _buildActionIcon(
-                          Icons.edit,
-                          Colors.orange,
-                          height,
-                          fontScale,
-                          () {
-                            // TODO: open edit screen
-                          },
-                        ),
-                      if (shift.hasCancel)
-                        _buildActionIcon(
-                          Icons.cancel,
-                          Colors.black,
-                          height,
-                          fontScale,
-                          () {
-                            // TODO: cancel shift
-                          },
-                        ),
-                      if (shift.hasAdd)
-                        _buildActionIcon(
-                          Icons.add_circle,
-                          Colors.green,
-                          height,
-                          fontScale,
-                          () {},
-                        ),
-                      if (shift.hasView)
-                        _buildActionIcon(
-                          Icons.visibility,
-                          Colors.orange,
-                          height,
-                          fontScale,
-                          () {
-                            // TODO: open details
-                          },
-                        ),
-                      if (shift.hasDocument)
-                        _buildActionIcon(
-                          Icons.description,
-                          Colors.orange,
-                          height,
-                          fontScale,
-                          () {},
-                        ),
-                    ],
+                    runSpacing: 4,
+                    alignment: WrapAlignment.end,
+                    children: _buildActionButtons(
+                      shift: shift,
+                      hasStaff: hasStaff,
+                      isCompleted: isCompleted,
+                      fontScale: fontScale,
+                      height: height,
+                    ),
                   ),
                 ),
               ],
@@ -562,23 +565,137 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
     );
   }
 
-  Widget _buildActionIcon(
-    IconData icon,
-    Color color,
-    double height,
-    double Function(double) fontScale,
-    VoidCallback onTap,
-  ) {
+  List<Widget> _buildActionButtons({
+    required ShiftItem shift,
+    required bool hasStaff,
+    required bool isCompleted,
+    required double Function(double) fontScale,
+    required double height,
+  }) {
+    final List<Widget> actions = [];
+
+    // CASE 3: Completed → only View
+    if (isCompleted) {
+      actions.add(
+        buildActionIcon(
+          icon: Icons.visibility,
+          color: Colors.orange,
+          height: height,
+          fontScale: fontScale,
+          tooltip: 'View shift',
+          onTap: () {
+            NavigatorHelper.push(ShiftViewPage(shift: shift));
+          },
+        ),
+      );
+      return actions;
+    }
+
+    // CASE 1: has staff (admin assigned or user claimed)
+    if (hasStaff) {
+      actions.addAll([
+        buildActionIcon(
+          icon: Icons.edit,
+          color: Colors.orange,
+          height: height,
+          fontScale: fontScale,
+          tooltip: 'Edit shift',
+          onTap: () {
+            NavigatorHelper.push(AddEditShiftScreen(existingShift: shift));
+          },
+        ),
+        buildActionIcon(
+          icon: Icons.person_remove_alt_1,
+          color: Colors.red,
+          height: height,
+          fontScale: fontScale,
+          tooltip: 'Cancel staff',
+          onTap: () {
+            context.read<AdminShiftBloc>().add(
+              CancelAdminShiftStaffEvent(shiftId: shift.id),
+            );
+          },
+        ),
+        buildActionIcon(
+          icon: Icons.visibility,
+          color: Colors.orange,
+          height: height,
+          fontScale: fontScale,
+          tooltip: 'View shift',
+          onTap: () {
+            NavigatorHelper.push(ShiftViewPage(shift: shift));
+          },
+        ),
+      ]);
+      return actions;
+    }
+
+    // CASE 2: no staff assigned
+    actions.addAll([
+      buildActionIcon(
+        icon: Icons.edit,
+        color: Colors.orange,
+        height: height,
+        fontScale: fontScale,
+        tooltip: 'Edit shift',
+        onTap: () {
+          NavigatorHelper.push(AddEditShiftScreen(existingShift: shift));
+        },
+      ),
+      buildActionIcon(
+        icon: Icons.person_add_alt_1,
+        color: Colors.green,
+        height: height,
+        fontScale: fontScale,
+        tooltip: 'Add staff',
+        onTap: () {
+          NavigatorHelper.push(AddEditShiftScreen(existingShift: shift));
+        },
+      ),
+      buildActionIcon(
+        icon: Icons.cancel,
+        color: Colors.black,
+        height: height,
+        fontScale: fontScale,
+        tooltip: 'Cancel shift request',
+        onTap: () {
+          context.read<AdminShiftBloc>().add(
+            CancelAdminShiftEvent(shiftId: shift.id),
+          );
+        },
+      ),
+    ]);
+
+    return actions;
+  }
+
+  Widget buildActionIcon({
+    required IconData icon,
+    required Color color,
+    required double height,
+    required double Function(double) fontScale,
+    required VoidCallback onTap,
+    String? tooltip,
+  }) {
+    final iconWidget = Icon(
+      icon,
+      color: color,
+      size: fontScale(height * 0.022),
+    );
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(left: 4),
-        child: Icon(icon, color: color, size: fontScale(height * 0.022)),
+        child:
+            tooltip != null
+                ? Tooltip(message: tooltip, child: iconWidget)
+                : iconWidget,
       ),
     );
   }
 
-  Widget _buildAddShiftButton(
+  Widget buildAddShiftButton(
     double width,
     double height,
     double Function(double) fontScale,
@@ -587,7 +704,10 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
       margin: EdgeInsets.symmetric(vertical: height * 0.02),
       child: OutlinedButton(
         onPressed: () {
-          NavigatorHelper.push(const AddShiftScreen());
+          final weekDays = _getWeekDays();
+          final selectedDate = weekDays[selectedDayIndex];
+
+          NavigatorHelper.push(AddEditShiftScreen(initialDate: selectedDate));
         },
         style: OutlinedButton.styleFrom(
           padding: EdgeInsets.symmetric(vertical: height * 0.018),

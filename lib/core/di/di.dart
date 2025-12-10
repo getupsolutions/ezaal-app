@@ -2,9 +2,14 @@ import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/RemoteDataSource/admin_shift_datasource.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/respositoryImpl/adminshift_repositoryimpl.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/enitity/approve_pendingclaim.dart';
-import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/respository_impl/adminshift_repository.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/respository/adminshift_repository.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/adminshift_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/approve_pendingshiftclaim.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/cancel_shift_usecase.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/get_shift_master_usecase.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/save_admin_shiftusecase.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/update_shift_statususecase.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/update_shift_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/data/data_source/managerinfo_datasource.dart';
 import 'package:ezaal/features/user_side/available_shift_page/data/data_source/shift_remote_datasource.dart';
@@ -84,6 +89,12 @@ Future<void> init() async {
     () => AdminShiftBloc(
       getAdminShiftsForWeek: sl(),
       approvePendingShiftClaims: sl(),
+      saveAdminShiftUseCase: sl(),
+      getShiftMastersUseCase: sl(),
+      cancelAdminShiftStaffUseCase: sl(),
+      cancelAdminShiftUseCase: sl(),
+      updateShiftAttendanceUseCase: sl(),
+      updateShiftStatusUseCase: sl(),
     ),
   );
 
@@ -105,6 +116,12 @@ Future<void> init() async {
   sl.registerLazySingleton(() => DeleteNotificationUseCase(sl()));
   sl.registerLazySingleton(() => GetAdminShiftsForWeek(sl()));
   sl.registerLazySingleton(() => ApprovePendingShiftClaimsUseCase(sl()));
+  sl.registerLazySingleton(() => SaveAdminShiftUseCase(sl()));
+  sl.registerLazySingleton(() => GetShiftMastersUseCase(sl()));
+  sl.registerLazySingleton(() => CancelAdminShiftStaffUseCase(sl()));
+  sl.registerLazySingleton(() => CancelAdminShiftUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateShiftAttendanceUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateShiftStatusUseCase(sl()));
 
   //! Repository
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl()));

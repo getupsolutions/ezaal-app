@@ -1,5 +1,5 @@
-import 'package:ezaal/core/constant/constant.dart';
 import 'package:flutter/material.dart';
+import 'package:ezaal/core/constant/constant.dart';
 
 class DashboardTile extends StatelessWidget {
   final IconData icon;
@@ -19,53 +19,103 @@ class DashboardTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = MediaQuery.of(context).size;
 
-    return Container(
-      height: size.height * 0.12,
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.white,
-            offset: Offset(-5, -5),
-            blurRadius: 10,
+        // 📌 Responsive multipliers
+        final isTablet = size.width > 600;
+        final isDesktop = size.width > 1000;
+
+        final iconSize =
+            isDesktop
+                ? size.width * 0.025
+                : isTablet
+                ? size.width * 0.045
+                : size.width * 0.07;
+
+        final titleFontSize =
+            isDesktop
+                ? size.width * 0.018
+                : isTablet
+                ? size.width * 0.03
+                : size.width * 0.045;
+
+        final containerHeight =
+            isDesktop
+                ? size.height * 0.10
+                : isTablet
+                ? size.height * 0.11
+                : size.height * 0.12;
+
+        return Container(
+          height: containerHeight,
+          padding: EdgeInsets.symmetric(
+            horizontal:
+                isDesktop
+                    ? 40
+                    : isTablet
+                    ? 30
+                    : 20,
+            vertical:
+                isDesktop
+                    ? 20
+                    : isTablet
+                    ? 18
+                    : 16,
           ),
-          BoxShadow(
-            color: Colors.black12,
-            offset: Offset(5, 5),
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: kWhite, size: size.width * 0.07),
-          SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: kWhite,
-                fontSize: size.width * 0.045,
-                fontWeight: FontWeight.w600,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.white,
+                offset: Offset(-5, -5),
+                blurRadius: 10,
               ),
-            ),
-          ),
-          InkWell(
-            onTap: onTap,
-            child: Text(
-              actionText,
-              style: TextStyle(
-                color: primaryColor,
-                fontWeight: FontWeight.w700,
+              BoxShadow(
+                color: Colors.black12,
+                offset: Offset(5, 5),
+                blurRadius: 10,
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              Icon(icon, color: kWhite, size: iconSize),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: kWhite,
+                    fontSize: titleFontSize,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: onTap,
+                child: Text(
+                  actionText,
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontSize:
+                        isDesktop
+                            ? 18
+                            : isTablet
+                            ? 16
+                            : 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

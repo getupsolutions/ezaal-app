@@ -1,4 +1,4 @@
-import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/respository_impl/adminshift_repository.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/respository/adminshift_repository.dart';
 
 class ApprovePendingShiftClaimsUseCase {
   final AdminShiftRepository repository;
