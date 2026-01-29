@@ -9,6 +9,7 @@ import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_bloc.dart';
+import 'package:ezaal/features/admin_side/staff%20availabilty%20Page/presentation/bloc/admin_avail_bloc.dart';
 import 'package:ezaal/features/user_side/available_shift_page/presentation/bloc/shift_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/Slot_Bloc/slot_bloc.dart';
@@ -21,6 +22,7 @@ import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_eve
 import 'package:ezaal/features/user_side/roster_page/presentation/bloc/roster_bloc.dart';
 import 'package:ezaal/features/user_side/splash_screen/presentation/bloc/splash_bloc.dart';
 import 'package:ezaal/features/user_side/splash_screen/presentation/pages/splash_screen.dart';
+import 'package:ezaal/features/user_side/staff_availbility_page/presentation/bloc/availbility_bloc.dart';
 import 'package:ezaal/features/user_side/timesheet_page/presentation/bloc/timesheet_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:ezaal/core/di/di.dart' as di;
@@ -164,6 +166,8 @@ class _MyAppState extends State<MyApp> {
         BlocProvider(create: (context) => di.sl<DashboardBloc>()),
         BlocProvider(create: (context) => di.sl<NotificationBloc>()),
         BlocProvider(create: (context) => di.sl<AdminShiftBloc>()),
+        BlocProvider(create: (context) => di.sl<AvailabilityBloc>()),
+        BlocProvider(create: (context) => di.sl<AdminAvailabilityBloc>()),
       ],
       child: MaterialApp(
         navigatorKey: NavigatorHelper.navigatorKey,
@@ -179,7 +183,7 @@ class _MyAppState extends State<MyApp> {
                   left: 0,
                   right: 0,
                   child: Container(
-                    color: kRed,
+                    color: danger,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,

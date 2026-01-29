@@ -1,3 +1,4 @@
+import 'package:ezaal/core/constant/constant.dart';
 import 'package:flutter/material.dart';
 
 class CustomTextFormField extends StatelessWidget {
@@ -11,6 +12,8 @@ class CustomTextFormField extends StatelessWidget {
   final IconData? prefixIcon;
   final IconData? suffixIcon;
   final void Function()? onSuffixIconPressed;
+  final bool isPassword;
+  final VoidCallback? onToggleVisibility;
 
   const CustomTextFormField({
     super.key,
@@ -24,11 +27,14 @@ class CustomTextFormField extends StatelessWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.onSuffixIconPressed,
+    this.isPassword = false,
+    this.onToggleVisibility,
   });
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(autovalidateMode: autovalidateMode,
+    return TextFormField(
+      autovalidateMode: autovalidateMode,
       controller: controller,
       validator: validator,
       obscureText: obscureText,
@@ -38,10 +44,13 @@ class CustomTextFormField extends StatelessWidget {
         hintText: hintText,
         prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
         suffixIcon:
-            suffixIcon != null
+            isPassword
                 ? IconButton(
-                  icon: Icon(suffixIcon),
-                  onPressed: onSuffixIconPressed,
+                  icon: Icon(
+                    obscureText ? Icons.visibility_off : Icons.visibility,
+                    color: kGrey,
+                  ),
+                  onPressed: onToggleVisibility,
                 )
                 : null,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

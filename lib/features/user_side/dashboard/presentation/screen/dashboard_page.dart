@@ -243,6 +243,8 @@ class _DashboardViewState extends State<DashboardView> {
                             buildMyRosterCard(context),
                             const SizedBox(height: 12),
                             buildClockInOutCard(context),
+                            const SizedBox(height: 12),
+                            buildStaffAvailCard(context),
                           ],
                         ),
                       );

@@ -1,7 +1,10 @@
 // presentation/pages/roster_tab_view.dart
 import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/widgets/custom_appbar.dart';
+import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/core/widgets/shimmer.dart';
+import 'package:ezaal/features/user_side/roster_page/domain/entity/roster_entity.dart';
+import 'package:ezaal/features/user_side/roster_page/presentation/pages/roster_details_page.dart';
 import 'package:ezaal/features/user_side/roster_page/presentation/widget/roster_scedule_card.dart';
 import 'package:ezaal/features/user_side/roster_page/presentation/widget/shimmer_widget.dart';
 import 'package:flutter/material.dart';
@@ -170,8 +173,8 @@ class _RosterTabViewState extends State<RosterTabView>
             );
           }
 
-          List<dynamic> selectedRosters = [];
-          List<dynamic> allRosters = [];
+          List<RosterEntity> selectedRosters = [];
+          List<RosterEntity> allRosters = [];
           bool hasData = false;
 
           if (state is RosterLoaded) {
@@ -264,12 +267,18 @@ class _RosterTabViewState extends State<RosterTabView>
                           final roster = selectedRosters[index];
                           return Padding(
                             padding: const EdgeInsets.all(8.0),
-                            child: RosterCustomList(
-                              // ✅ Date formatted as day month year
-                              date: _formatDisplayDate(roster.date),
-                              day: roster.day,
-                              time: roster.time,
-                              location: roster.location,
+                            child: InkWell(
+                              onTap:
+                                  () => NavigatorHelper.push(
+                                    RosterDetailsPage(roster: roster),
+                                  ),
+                              child: RosterCustomList(
+                                // ✅ Date formatted as day month year
+                                date: _formatDisplayDate(roster.date),
+                                day: roster.day,
+                                time: roster.time,
+                                location: roster.location,
+                              ),
                             ),
                           );
                         },

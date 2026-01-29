@@ -6,10 +6,13 @@ class RosterModel extends RosterEntity {
     required super.date,
     required super.day,
     required super.time,
+
     required super.location,
     required super.organizationName,
     required super.notes,
     required super.designation,
+    required super.staffName,
+    required super.breakMinutes,
   });
 
   factory RosterModel.fromJson(Map<String, dynamic> json) {
@@ -32,6 +35,9 @@ class RosterModel extends RosterEntity {
     final dateTime = DateTime.tryParse(date);
     final day = dateTime != null ? _getDayName(dateTime.weekday) : '';
 
+    final staffName = (json['staffreqname'] ?? '').toString();
+    final breakMinutes = (json['break'] ?? '').toString();
+
     return RosterModel(
       date: date,
       day: day,
@@ -40,6 +46,8 @@ class RosterModel extends RosterEntity {
       organizationName: json['organization_name'] ?? 'Unknown',
       notes: json['notes'] ?? '',
       designation: json['designation'] ?? '',
+      staffName: staffName.isEmpty ? '-' : staffName,
+      breakMinutes: breakMinutes.isEmpty ? '0' : breakMinutes,
     );
   }
 

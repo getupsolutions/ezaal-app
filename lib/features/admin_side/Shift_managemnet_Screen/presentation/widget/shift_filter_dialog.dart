@@ -82,7 +82,7 @@ class _OrganizationRosterFilterDialogState
       case 'Unapproved':
         return 'un-confirm';
       default:
-        return null; // Approved/UnAp, Pending -> no status filter
+        return null;
     }
   }
 
@@ -176,7 +176,6 @@ class _OrganizationRosterFilterDialogState
 
     String? statusApi = _mapStatusLabelToApi(selectedStatus);
 
-    // 🔴 If "Show Cancelled Shift" is picked → show only cancelled shifts
     if (showCancelledShift) {
       statusApi = 'cancelled';
     }
@@ -209,7 +208,8 @@ class _OrganizationRosterFilterDialogState
     });
   }
 
-  void _onSendStaffConfirmedMail() {
+  // ✅ FIXED: This method now properly sends emails based on filters
+  void _onSendStaffConfirmedMail() async {
     final range =
         selectedDateRange ??
         DateTimeRange(
@@ -220,12 +220,367 @@ class _OrganizationRosterFilterDialogState
     final int? organizationId = _getOrganizationIdByName(selectedOrganization);
     final int? staffId = _getStaffIdByName(selectedStaff);
 
+    // Get current bloc state to check if shifts are loaded
+    final currentState = context.read<AdminShiftBloc>().state;
+
+    List<int> shiftIds = [];
+
+    // ✅ Try to get shift IDs from current state first
+    if (currentState is AdminShiftLoaded) {
+      shiftIds =
+          currentState.shifts
+              .where((shift) {
+                // Only include confirmed shifts with staff assigned
+                return shift.staffName.isNotEmpty &&
+                    shift.status == 'confirmed';
+              })
+              .map((shift) => shift.id)
+              .toList();
+    }
+
+    // ✅ Show confirmation dialog
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Send Staff Confirmed Mail'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  shiftIds.isNotEmpty
+                      ? 'This will send confirmation emails to ${shiftIds.length} staff member(s) with confirmed shifts.'
+                      : 'This will fetch confirmed shifts matching your filters and send confirmation emails.',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Filters applied:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '• Date: ${DateFormat('dd/MM/yyyy').format(range.start)} - ${DateFormat('dd/MM/yyyy').format(range.end)}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                if (organizationId != null)
+                  Text(
+                    '• Organization: $selectedOrganization',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                if (staffId != null)
+                  Text(
+                    '• Staff: $selectedStaff',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Emails will include shift details: Date, Time, Location, Department, Position, Break, and Notes.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+
+                  // Show loading indicator
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Fetching shifts and sending emails...'),
+                        ],
+                      ),
+                      backgroundColor: Colors.blue,
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+
+                  // ✅ If we don't have shift IDs from current state,
+                  // we need to fetch them using the backend endpoint
+                  if (shiftIds.isEmpty) {
+                    // Load shifts first, then send emails
+                    // This will trigger the bloc to fetch shifts
+                    context.read<AdminShiftBloc>().add(
+                      LoadAdminShiftsForWeek(
+                        weekStart: range.start,
+                        weekEnd: range.end,
+                        organizationId: organizationId,
+                        staffId: staffId,
+                        status: 'confirmed', // Only get confirmed shifts
+                      ),
+                    );
+
+                    // Wait a moment for shifts to load
+                    await Future.delayed(const Duration(milliseconds: 500));
+
+                    // Get the updated state
+                    final updatedState = context.read<AdminShiftBloc>().state;
+                    if (updatedState is AdminShiftLoaded) {
+                      shiftIds =
+                          updatedState.shifts
+                              .where((shift) => shift.staffName.isNotEmpty)
+                              .map((shift) => shift.id)
+                              .toList();
+                    }
+                  }
+
+                  // ✅ Send emails with the shift IDs
+                  if (shiftIds.isNotEmpty) {
+                    context.read<AdminShiftBloc>().add(
+                      SendStaffConfirmedMailEvent(shiftIds: shiftIds),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'No confirmed shifts found matching your filters',
+                        ),
+                        backgroundColor: Colors.orange,
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.send),
+                label: Text(
+                  shiftIds.isNotEmpty
+                      ? 'Send ${shiftIds.length} Email(s)'
+                      : 'Fetch & Send Emails',
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFEB3B),
+                  foregroundColor: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _onSendStaffAvailableShiftMail() async {
+    final range =
+        selectedDateRange ??
+        DateTimeRange(
+          start: DateTime.now(),
+          end: DateTime.now().add(const Duration(days: 6)),
+        );
+
+    final int? organizationId = _getOrganizationIdByName(selectedOrganization);
+    final int? staffTypeId = _getStaffTypeIdByName(selectedStaffType);
+    final int? departmentId = _getDepartmentIdByName(selectedDepartment);
+
+    // Get current bloc state to check if shifts are loaded
+    final currentState = context.read<AdminShiftBloc>().state;
+
+    List<int> shiftIds = [];
+
+    // ✅ Try to get shift IDs from current state first
+    // Available shifts are those without staff assigned
+    if (currentState is AdminShiftLoaded) {
+      shiftIds =
+          currentState.shifts
+              .where((shift) {
+                // Only include shifts without staff assigned and not cancelled
+                return shift.staffName.isEmpty && shift.status != 'cancelled';
+              })
+              .map((shift) => shift.id)
+              .toList();
+    }
+
+    // ✅ Show confirmation dialog
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Send Staff Available Shift Mail'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  shiftIds.isNotEmpty
+                      ? 'This will send availability notifications for ${shiftIds.length} open shift(s) to eligible staff members.'
+                      : 'This will fetch available shifts matching your filters and send notifications to eligible staff.',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Filters applied:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '• Date: ${DateFormat('dd/MM/yyyy').format(range.start)} - ${DateFormat('dd/MM/yyyy').format(range.end)}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                if (organizationId != null)
+                  Text(
+                    '• Organization: $selectedOrganization',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                if (staffTypeId != null)
+                  Text(
+                    '• Staff Type: $selectedStaffType',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                if (departmentId != null)
+                  Text(
+                    '• Department: $selectedDepartment',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Only staff matching the shift requirements (staff type, organization, availability) will receive emails.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+
+                  // Show loading indicator
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'Fetching available shifts and sending emails...',
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Colors.blue,
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+
+                  // ✅ If we don't have shift IDs from current state,
+                  // we need to fetch them
+                  if (shiftIds.isEmpty) {
+                    // Load shifts first - fetch all non-cancelled shifts
+                    context.read<AdminShiftBloc>().add(
+                      LoadAdminShiftsForWeek(
+                        weekStart: range.start,
+                        weekEnd: range.end,
+                        organizationId: organizationId,
+                        staffTypeId: staffTypeId,
+                        departmentId: departmentId,
+                        // Don't filter by status - we need to check staffName
+                      ),
+                    );
+
+                    // Wait a moment for shifts to load
+                    await Future.delayed(const Duration(milliseconds: 500));
+
+                    // Get the updated state
+                    final updatedState = context.read<AdminShiftBloc>().state;
+                    if (updatedState is AdminShiftLoaded) {
+                      shiftIds =
+                          updatedState.shifts
+                              .where(
+                                (shift) =>
+                                    shift.staffName.isEmpty &&
+                                    shift.status != 'cancelled',
+                              )
+                              .map((shift) => shift.id)
+                              .toList();
+                    }
+                  }
+
+                  // ✅ Send emails with the shift IDs
+                  if (shiftIds.isNotEmpty) {
+                    context.read<AdminShiftBloc>().add(
+                      SendStaffAvailableShiftMailEvent(shiftIds: shiftIds),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'No available shifts found matching your filters',
+                        ),
+                        backgroundColor: Colors.orange,
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.send),
+                label: Text(
+                  shiftIds.isNotEmpty
+                      ? 'Send for ${shiftIds.length} Shift(s)'
+                      : 'Fetch & Send Notifications',
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF03A9F4),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _onSendOrganizationMail() {
+    final range =
+        selectedDateRange ??
+        DateTimeRange(
+          start: DateTime.now(),
+          end: DateTime.now().add(const Duration(days: 6)),
+        );
+
+    final int? organizationId = _getOrganizationIdByName(selectedOrganization);
+
+    if (organizationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select an organization'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     context.read<AdminShiftBloc>().add(
-      ApprovePendingShiftClaimsEvent(
+      SendOrganizationRosterMailEvent(
         startDate: range.start,
         endDate: range.end,
         organizationId: organizationId,
-        staffId: staffId,
+        includeCancelled: showCancelledShift,
       ),
     );
 
@@ -286,7 +641,90 @@ class _OrganizationRosterFilterDialogState
                 ),
 
                 Flexible(
-                  child: BlocBuilder<AdminShiftBloc, AdminShiftState>(
+                  child: BlocConsumer<AdminShiftBloc, AdminShiftState>(
+                    listener: (context, state) {
+                      // ✅ Listen for staff confirmed mail states
+                      if (state is StaffConfirmedMailSentSuccess) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(state.message),
+                                if (state.failedCount > 0)
+                                  Text(
+                                    '${state.failedCount} email(s) failed',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                              ],
+                            ),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 4),
+                          ),
+                        );
+                      } else if (state is StaffConfirmedMailSentFailure) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Mail failed: ${state.error}'),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      } else if (state is StaffAvailableShiftMailSentSuccess) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(state.message),
+                                if (state.failedCount > 0)
+                                  Text(
+                                    '${state.failedCount} notification(s) failed',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                if (state.totalEligible > 0)
+                                  Text(
+                                    'Total eligible staff: ${state.totalEligible}',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                              ],
+                            ),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 4),
+                          ),
+                        );
+                      } else if (state is StaffAvailableShiftMailSentFailure) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Notification failed: ${state.error}',
+                            ),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                      // ✅ Organization mail feedback
+                      else if (state is OrgMailSentSuccess) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(state.message),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      } else if (state is OrgMailSentFailure) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Failed: ${state.error}'),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
                     builder: (context, state) {
                       if (state is ShiftMastersLoading && _masters == null) {
                         return const Center(
@@ -518,9 +956,7 @@ class _OrganizationRosterFilterDialogState
                             _buildActionButton(
                               'Send Organization Mail',
                               const Color(0xFF00E676),
-                              () {
-                                // TODO
-                              },
+                              _onSendOrganizationMail,
                             ),
                             const SizedBox(height: 12),
                             _buildActionButton(
@@ -533,9 +969,7 @@ class _OrganizationRosterFilterDialogState
                             _buildActionButton(
                               'Send Staff Available Shift Mail',
                               const Color(0xFF03A9F4),
-                              () {
-                                // TODO
-                              },
+                              _onSendStaffAvailableShiftMail,
                             ),
                           ],
                         ),

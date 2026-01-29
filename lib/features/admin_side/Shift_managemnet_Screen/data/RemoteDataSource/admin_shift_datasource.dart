@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:ezaal/core/services/tokenrefresh_service.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/savde_admin_shiftmodel.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/save_shift_respo.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/shift_item.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/shift_master_model.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/update_shift_attendence_model.dart';
@@ -159,15 +160,16 @@ class AdminShiftRemoteDataSource {
     }
   }
 
-  Future<void> saveShift(SaveAdminShiftParams params) async {
+  Future<SaveShiftResponse> saveShift(SaveAdminShiftParams params) async {
     try {
-      // Decide create vs update based on presence of id
       final bool isUpdate = params.id != null;
-
       final endpoint = isUpdate ? '/admin/update-shift' : '/admin/create-shift';
 
       final uri = Uri.parse('$baseUrl$endpoint');
       final body = json.encode(params.toJson());
+
+      print('🔄 Saving shift - isUpdate: $isUpdate, endpoint: $endpoint');
+      print('📤 Request body: $body');
 
       final response = await TokenRefreshService.makeAuthenticatedRequest(
         (token) => http.post(
@@ -180,19 +182,51 @@ class AdminShiftRemoteDataSource {
         ),
       );
 
-      print('Save shift status: ${response.statusCode}');
-      print('Save shift body: ${response.body}');
+      print('📥 Save shift status: ${response.statusCode}');
+      print('📥 Save shift body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // success
-        return;
-      } else {
-        throw Exception(
-          'Failed to save shift: ${response.statusCode} - ${response.body}',
-        );
+        if (response.body.trim().isEmpty) return const SaveShiftResponse();
+
+        try {
+          final decoded = json.decode(response.body);
+
+          // Handle if the response is a Map
+          if (decoded is Map<String, dynamic>) {
+            final data = decoded['data'];
+
+            // If data is a Map, use it directly
+            if (data is Map<String, dynamic>) {
+              return SaveShiftResponse.fromJson(data);
+            }
+            // If data is a List or anything else, return empty response
+            else {
+              print('⚠️ Data field is not a Map, returning empty response');
+              return const SaveShiftResponse();
+            }
+          }
+          // Handle if the entire response is a List (shouldn't happen, but safe fallback)
+          else if (decoded is List) {
+            print('⚠️ Response is a List, returning empty response');
+            return const SaveShiftResponse();
+          }
+          // Unknown format
+          else {
+            print('⚠️ Unknown response format, returning empty response');
+            return const SaveShiftResponse();
+          }
+        } catch (parseError) {
+          print('❌ Error parsing save shift response: $parseError');
+          // Still return success if the status code is 200/201
+          return const SaveShiftResponse();
+        }
       }
+
+      throw Exception(
+        'Failed to save shift: ${response.statusCode} - ${response.body}',
+      );
     } catch (e) {
-      print('❌ Error saving shift: $e');
+      print('❌ Error in saveShift: $e');
       if (e.toString().contains('Session expired')) rethrow;
       throw Exception('Failed to save shift: $e');
     }
@@ -388,6 +422,149 @@ class AdminShiftRemoteDataSource {
       print('❌ Error updating shift status: $e');
       if (e.toString().contains('Session expired')) rethrow;
       throw Exception('Failed to update shift status: $e');
+    }
+  }
+
+  Future<void> sendOrganizationRosterMail({
+    required DateTime startDate,
+    required DateTime endDate,
+    required int organizationId,
+    required bool includeCancelled,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/send-organization-roster-mail');
+
+    final body = {
+      'start_date': _formatDate(startDate),
+      'end_date': _formatDate(endDate),
+      'organization_id': organizationId,
+      'include_cancelled': includeCancelled,
+    };
+
+    final response = await TokenRefreshService.makeAuthenticatedRequest(
+      (token) => http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(body),
+      ),
+    );
+
+    if (response.statusCode == 200) return;
+    throw Exception('Failed: ${response.statusCode} ${response.body}');
+  }
+
+  Future<Map<String, dynamic>> sendStaffConfirmedMail({
+    required List<int> shiftIds,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/send-staff-confirmed-mail');
+
+      final body = json.encode({'shift_ids': shiftIds});
+
+      print('📧 Sending staff confirmed mail for shifts: $shiftIds');
+
+      final response = await TokenRefreshService.makeAuthenticatedRequest(
+        (token) => http.post(
+          uri,
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: body,
+        ),
+      );
+
+      print('Send staff confirmed mail status: ${response.statusCode}');
+      print('Send staff confirmed mail body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        if (response.body.trim().isEmpty) {
+          return {
+            'sent': true,
+            'sent_count': shiftIds.length,
+            'failed_count': 0,
+          };
+        }
+
+        final decoded = json.decode(response.body) as Map<String, dynamic>;
+        final data = decoded['data'] as Map<String, dynamic>? ?? {};
+
+        return {
+          'sent': data['sent'] ?? true,
+          'sent_count': data['sent_count'] ?? shiftIds.length,
+          'failed_count': data['failed_count'] ?? 0,
+          'results': data['results'] ?? [],
+        };
+      } else if (response.statusCode == 400) {
+        final decoded = json.decode(response.body) as Map<String, dynamic>;
+        throw Exception(decoded['message'] ?? 'Failed to send emails');
+      } else {
+        throw Exception(
+          'Failed to send staff confirmed mail: '
+          '${response.statusCode} - ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('❌ Error sending staff confirmed mail: $e');
+      if (e.toString().contains('Session expired')) rethrow;
+      throw Exception('Failed to send staff confirmed mail: $e');
+    }
+  }
+
+    Future<Map<String, dynamic>> sendStaffAvailableShiftMail({
+    required List<int> shiftIds,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/send-staff-available-shift-mail');
+
+      final body = json.encode({'shift_ids': shiftIds});
+
+      print('📧 Sending staff available shift mail for shifts: $shiftIds');
+
+      final response = await TokenRefreshService.makeAuthenticatedRequest(
+        (token) => http.post(
+          uri,
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: body,
+        ),
+      );
+
+      print('Send staff available shift mail status: ${response.statusCode}');
+      print('Send staff available shift mail body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        if (response.body.trim().isEmpty) {
+          return {'sent': true, 'sent_count': 0, 'failed_count': 0};
+        }
+
+        final decoded = json.decode(response.body) as Map<String, dynamic>;
+        final data = decoded['data'] as Map<String, dynamic>? ?? {};
+
+        return {
+          'sent': data['sent'] ?? true,
+          'sent_count': data['sent_count'] ?? 0,
+          'failed_count': data['failed_count'] ?? 0,
+          'total_eligible': data['total_eligible'] ?? 0,
+          'results': data['results'] ?? [],
+        };
+      } else if (response.statusCode == 400) {
+        final decoded = json.decode(response.body) as Map<String, dynamic>;
+        throw Exception(decoded['message'] ?? 'Failed to send emails');
+      } else {
+        throw Exception(
+          'Failed to send staff available shift mail: '
+          '${response.statusCode} - ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('❌ Error sending staff available shift mail: $e');
+      if (e.toString().contains('Session expired')) rethrow;
+      throw Exception('Failed to send staff available shift mail: $e');
     }
   }
 

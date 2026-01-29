@@ -1,16 +1,23 @@
 import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/RemoteDataSource/admin_shift_datasource.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/respositoryImpl/adminshift_repositoryimpl.dart';
-import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/enitity/approve_pendingclaim.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/respository/adminshift_repository.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/adminshift_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/approve_pendingshiftclaim.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/cancel_shift_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/get_shift_master_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/save_admin_shiftusecase.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/send_organization_rostermail_usecase.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/send_staff_available_shift.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/send_staff_confirmed_mail_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/update_shift_statususecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/update_shift_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_bloc.dart';
+import 'package:ezaal/features/admin_side/staff%20availabilty%20Page/data/datasource/admin_avail_remote.dart';
+import 'package:ezaal/features/admin_side/staff%20availabilty%20Page/data/repoImpl/admin_avail_repoimpl.dart';
+import 'package:ezaal/features/admin_side/staff%20availabilty%20Page/domain/repo/available_admin_repo.dart';
+import 'package:ezaal/features/admin_side/staff%20availabilty%20Page/domain/usecase/get_admin_availability_usecase.dart';
+import 'package:ezaal/features/admin_side/staff%20availabilty%20Page/presentation/bloc/admin_avail_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/data/data_source/managerinfo_datasource.dart';
 import 'package:ezaal/features/user_side/available_shift_page/data/data_source/shift_remote_datasource.dart';
 import 'package:ezaal/features/user_side/available_shift_page/data/repository/managerinfo_repositoryimpl.dart';
@@ -50,6 +57,11 @@ import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/repository/a
 import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/usecase/clock_in_usecase.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/usecase/clock_out_usecase.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/attendance_bloc.dart';
+import 'package:ezaal/features/user_side/staff_availbility_page/data/dataSource/availbility_datasource.dart';
+import 'package:ezaal/features/user_side/staff_availbility_page/data/repoImpl/availbility_repositoryimpl.dart';
+import 'package:ezaal/features/user_side/staff_availbility_page/domain/repo/availability_repository.dart';
+import 'package:ezaal/features/user_side/staff_availbility_page/domain/usecase/availbility_usecase.dart';
+import 'package:ezaal/features/user_side/staff_availbility_page/presentation/bloc/availbility_bloc.dart';
 import 'package:ezaal/features/user_side/timesheet_page/data/remoteDatasource/timesheet_remotedatasource.dart';
 import 'package:ezaal/features/user_side/timesheet_page/data/repositoryImpl/timesheet_repositoryimpl.dart';
 import 'package:ezaal/features/user_side/timesheet_page/domain/repository/timesheet_repository.dart';
@@ -95,8 +107,20 @@ Future<void> init() async {
       cancelAdminShiftUseCase: sl(),
       updateShiftAttendanceUseCase: sl(),
       updateShiftStatusUseCase: sl(),
+      sendOrganizationRosterMailUseCase: sl(),
+      sendStaffConfirmedMailUseCase: sl(),
+      sendStaffAvailableShiftMailUseCase: sl(),
     ),
   );
+  sl.registerFactory(
+    () => AvailabilityBloc(
+      editUsecase: sl(),
+      deleteUseCase: sl(),
+      getUseCase: sl(),
+      saveUseCase: sl(),
+    ),
+  );
+  sl.registerFactory(() => AdminAvailabilityBloc(sl()));
 
   //! UseCases
   sl.registerLazySingleton(() => LoginUseCase(sl()));
@@ -122,6 +146,14 @@ Future<void> init() async {
   sl.registerLazySingleton(() => CancelAdminShiftUseCase(sl()));
   sl.registerLazySingleton(() => UpdateShiftAttendanceUseCase(sl()));
   sl.registerLazySingleton(() => UpdateShiftStatusUseCase(sl()));
+  sl.registerLazySingleton(() => SendOrganizationRosterMailUseCase(sl()));
+  sl.registerLazySingleton(() => GetAvailabilityUseCase(sl()));
+  sl.registerLazySingleton(() => SaveAvailabilityUseCase(sl()));
+  sl.registerLazySingleton(() => DeleteAvailabilityUseCase(sl()));
+  sl.registerLazySingleton(() => GetAdminAvailabilityRange(sl()));
+  sl.registerLazySingleton(() => EditAvailabilityUseCase(sl()));
+  sl.registerLazySingleton(() => SendStaffConfirmedMailUseCase(sl()));
+  sl.registerLazySingleton(() => SendStaffAvailableShiftMailUseCase(sl()));
 
   //! Repository
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl()));
@@ -143,6 +175,12 @@ Future<void> init() async {
   );
   sl.registerLazySingleton<AdminShiftRepository>(
     () => AdminShiftRepositoryImpl(sl()),
+  );
+  sl.registerLazySingleton<AvailabilityRepository>(
+    () => AvailabilityRepositoryImpl(sl()),
+  );
+  sl.registerLazySingleton<AvailabilityAdminRepo>(
+    () => AvailabilityAdminRepoImpl(sl()),
   );
 
   //! Data sources
@@ -173,5 +211,11 @@ Future<void> init() async {
   );
   sl.registerLazySingleton<AdminShiftRemoteDataSource>(
     () => AdminShiftRemoteDataSource(),
+  );
+  sl.registerLazySingleton<AvailabilityRemoteDataSource>(
+    () => AvailabilityRemoteDataSource(),
+  );
+  sl.registerLazySingleton<AvailabilityAdminRemoteDS>(
+    () => AvailabilityAdminRemoteDS(),
   );
 }

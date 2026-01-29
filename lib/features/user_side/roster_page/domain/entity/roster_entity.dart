@@ -7,6 +7,8 @@ class RosterEntity {
   final String organizationName;
   final String notes;
   final String designation;
+  final String staffName;
+  final String breakMinutes;
 
   RosterEntity({
     required this.date,
@@ -16,5 +18,7 @@ class RosterEntity {
     required this.organizationName,
     required this.notes,
     required this.designation,
+    required this.staffName,
+    required this.breakMinutes,
   });
 }

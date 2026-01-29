@@ -128,8 +128,51 @@ class ToggleShiftApprovalEvent extends AdminShiftEvent {
   final int shiftId;
   final bool approve; // true = approve, false = unapprove
 
-  const ToggleShiftApprovalEvent({required this.shiftId, required this.approve});
+  const ToggleShiftApprovalEvent({
+    required this.shiftId,
+    required this.approve,
+  });
 
   @override
   List<Object?> get props => [shiftId, approve];
+}
+
+class SendOrganizationRosterMailEvent extends AdminShiftEvent {
+  final DateTime startDate;
+  final DateTime endDate;
+  final int organizationId;
+  final bool includeCancelled;
+
+  const SendOrganizationRosterMailEvent({
+    required this.startDate,
+    required this.endDate,
+    required this.organizationId,
+    this.includeCancelled = false,
+  });
+
+  @override
+  List<Object?> get props => [
+    startDate,
+    endDate,
+    organizationId,
+    includeCancelled,
+  ];
+}
+
+class SendStaffConfirmedMailEvent extends AdminShiftEvent {
+  final List<int> shiftIds;
+
+  const SendStaffConfirmedMailEvent({required this.shiftIds});
+
+  @override
+  List<Object?> get props => [shiftIds];
+}
+
+class SendStaffAvailableShiftMailEvent extends AdminShiftEvent {
+  final List<int> shiftIds;
+
+  const SendStaffAvailableShiftMailEvent({required this.shiftIds});
+
+  @override
+  List<Object?> get props => [shiftIds];
 }

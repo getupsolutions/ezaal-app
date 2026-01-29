@@ -4,6 +4,7 @@ import 'package:ezaal/core/widgets/svg_imageviewer.dart';
 import 'package:ezaal/features/user_side/available_shift_page/presentation/pages/availableshift_page.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/pages/clockin_out_page.dart';
 import 'package:ezaal/features/user_side/roster_page/presentation/pages/roster_page.dart';
+import 'package:ezaal/features/user_side/staff_availbility_page/presentation/screen/staff_availbility_page.dart';
 import 'package:flutter/material.dart';
 
 Widget buildEzaalLogo({required bool isSmallScreen}) {
@@ -25,7 +26,7 @@ Widget buildEzaalLogo({required bool isSmallScreen}) {
     child: ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Image.asset(
-        'assets/Logo/Media.jpeg',
+        'assets/Logo/Media.png',
         width: size,
         height: size,
         fit: BoxFit.cover,
@@ -258,6 +259,79 @@ Widget buildClockInOutCard(BuildContext context) {
           SizedBox(height: isSmallScreen ? 16 : 24),
           Text(
             'Clock In & Clock Out',
+            style: TextStyle(
+              fontSize: titleSize,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Click here',
+            style: TextStyle(
+              fontSize: subtitleSize,
+              color: Colors.blue,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget buildStaffAvailCard(BuildContext context) {
+  final screenWidth = MediaQuery.of(context).size.width;
+  final isSmallScreen = screenWidth < 600;
+  final cardPadding = isSmallScreen ? 20.0 : 32.0;
+  final iconSize = isSmallScreen ? 24.0 : 32.0;
+  final titleSize = isSmallScreen ? 18.0 : 22.0;
+  final subtitleSize = isSmallScreen ? 14.0 : 16.0;
+
+  return InkWell(
+    onTap: () {
+      NavigatorHelper.push(StaffAvailbilityPage());
+    },
+    borderRadius: BorderRadius.circular(12),
+    child: Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(cardPadding),
+      decoration: BoxDecoration(
+        color: primaryDarK,
+        // gradient: const LinearGradient(
+        //   colors: [Color(0xFFF472B6), Color(0xFFEC4899)],
+        //   begin: Alignment.topLeft,
+        //   end: Alignment.bottomRight,
+        // ),
+        borderRadius: BorderRadius.circular(12),
+        // boxShadow: [
+        //   BoxShadow(
+        //     color: Colors.pink.withAlpha(130),
+        //     blurRadius: 10,
+        //     offset: const Offset(0, 4),
+        //   ),
+        // ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(130),
+              shape: BoxShape.circle,
+            ),
+            child: SVGImageView(
+              image: 'assets/svg/event-svgrepo-com.svg',
+              width: iconSize,
+              height: iconSize,
+              color: Colors.white,
+            ),
+          ),
+          SizedBox(height: isSmallScreen ? 16 : 24),
+          Text(
+            'Staff availability',
             style: TextStyle(
               fontSize: titleSize,
               fontWeight: FontWeight.w600,

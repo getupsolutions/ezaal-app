@@ -2,6 +2,7 @@ import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/core/widgets/svg_imageviewer.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/screen/shift_managmentscreen.dart';
+import 'package:ezaal/features/admin_side/staff%20availabilty%20Page/presentation/screen/staff_availbilty_admin.dart';
 import 'package:ezaal/features/user_side/available_shift_page/presentation/pages/availableshift_page.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/pages/clockin_out_page.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_bloc.dart';
@@ -26,7 +27,7 @@ class _AdminDrawerState extends State<AdminDrawer> {
   int selectedIndex = -1; // Default no selection
 
   Future<void> _launchURL() async {
-    final Uri url = Uri.parse('https://getupsolutions.in');
+    final Uri url = Uri.parse('https://getupsolutions.com.au/');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       // Show error if URL can't be launched
       if (mounted) {
@@ -214,6 +215,26 @@ class _AdminDrawerState extends State<AdminDrawer> {
                           onTap:
                               () =>
                                   NavigatorHelper.push(ShiftManagmentscreen()),
+                        ),
+                        ListTile(
+                          leading: SVGImageView(
+                            image: 'assets/svg/event-svgrepo-com.svg',
+                            width: iconSize,
+                            height: iconSize,
+                            color: Colors.white,
+                          ),
+                          title: Text(
+                            'Staff Availabilty',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: kWhite,
+                              fontSize: titleFontSize,
+                            ),
+                          ),
+                          onTap:
+                              () => NavigatorHelper.push(
+                                StaffAvailbiltyAdminPage(),
+                              ),
                         ),
                       ],
                     ),

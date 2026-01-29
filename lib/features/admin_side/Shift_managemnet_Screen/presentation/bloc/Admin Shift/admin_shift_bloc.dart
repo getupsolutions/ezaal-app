@@ -1,11 +1,16 @@
 // presentation/bloc/Admin Shift/admin_shift_bloc.dart
+import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/savde_admin_shiftmodel.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/save_shift_respo.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/shift_item.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/adminshift_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/approve_pendingshiftclaim.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/cancel_shift_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/get_shift_master_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/save_admin_shiftusecase.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/send_organization_rostermail_usecase.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/send_staff_available_shift.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/send_staff_confirmed_mail_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/update_shift_statususecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/domain/usecase/update_shift_usecase.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shiftevent.dart';
@@ -21,6 +26,9 @@ class AdminShiftBloc extends Bloc<AdminShiftEvent, AdminShiftState> {
   final CancelAdminShiftStaffUseCase cancelAdminShiftStaffUseCase;
   final UpdateShiftAttendanceUseCase updateShiftAttendanceUseCase;
   final UpdateShiftStatusUseCase updateShiftStatusUseCase;
+  final SendOrganizationRosterMailUseCase sendOrganizationRosterMailUseCase;
+  final SendStaffConfirmedMailUseCase sendStaffConfirmedMailUseCase;
+  final SendStaffAvailableShiftMailUseCase sendStaffAvailableShiftMailUseCase;
 
   DateTime? _currentWeekStart;
   DateTime? _currentWeekEnd;
@@ -39,6 +47,9 @@ class AdminShiftBloc extends Bloc<AdminShiftEvent, AdminShiftState> {
     required this.cancelAdminShiftStaffUseCase,
     required this.updateShiftAttendanceUseCase,
     required this.updateShiftStatusUseCase,
+    required this.sendOrganizationRosterMailUseCase,
+    required this.sendStaffConfirmedMailUseCase,
+    required this.sendStaffAvailableShiftMailUseCase,
   }) : super(AdminShiftInitial()) {
     on<LoadAdminShiftsForWeek>(_onLoadWeek);
     on<RefreshAdminShifts>(_onRefresh);
@@ -49,6 +60,9 @@ class AdminShiftBloc extends Bloc<AdminShiftEvent, AdminShiftState> {
     on<CancelAdminShiftStaffEvent>(_onCancelShiftStaff);
     on<UpdateShiftAttendanceEvent>(_onUpdateAttendance);
     on<ToggleShiftApprovalEvent>(_onToggleShiftApproval);
+    on<SendOrganizationRosterMailEvent>(_onSendOrgMail);
+    on<SendStaffConfirmedMailEvent>(_onSendStaffConfirmedMail);
+    on<SendStaffAvailableShiftMailEvent>(_onSendStaffAvailableShiftMail);
   }
 
   Future<void> _onLoadWeek(
@@ -164,12 +178,11 @@ class AdminShiftBloc extends Bloc<AdminShiftEvent, AdminShiftState> {
     emit(AddEditShiftSubmitting());
 
     try {
-      // Ensure at least one copy
       final copies = event.copies <= 0 ? 1 : event.copies;
 
+      SaveShiftResponse? lastResp;
+
       for (int i = 0; i < copies; i++) {
-        // If you ever pass an id when copies > 1 from UI,
-        // this ensures only the first iteration updates, others create new:
         final idForThisIteration =
             (copies == 1) ? event.id : (i == 0 ? event.id : null);
 
@@ -186,34 +199,42 @@ class AdminShiftBloc extends Bloc<AdminShiftEvent, AdminShiftState> {
           departmentId: event.departmentId,
         );
 
-        // Your usecase already handles API & errors
-        await saveAdminShiftUseCase(params);
+        lastResp = await saveAdminShiftUseCase(params);
       }
 
-      // Notify UI that add/edit (or duplicate) succeeded
-      emit(AddEditShiftSuccess());
+      final mailMsg =
+          (lastResp?.mailSent == true)
+              ? " Email sent to ${lastResp?.mailTo ?? 'staff'}."
+              : (lastResp?.mailReason != null)
+              ? " Email not sent (${lastResp!.mailReason})."
+              : "";
 
-      // Refresh current week list, if context is known
+      emit(
+        AddEditShiftSuccess(
+          message:
+              (event.id != null)
+                  ? "Shift updated.$mailMsg"
+                  : "Shift created.$mailMsg",
+        ),
+      );
+
+      // refresh week same as your existing code...
       if (_currentWeekStart != null && _currentWeekEnd != null) {
-        try {
-          final refreshedShifts = await getAdminShiftsForWeek(
-            _currentWeekStart!,
-            _currentWeekEnd!,
-            organizationId: _currentOrgId,
-            staffId: _currentStaffId,
-            status: _currentStatus,
-          );
+        final refreshedShifts = await getAdminShiftsForWeek(
+          _currentWeekStart!,
+          _currentWeekEnd!,
+          organizationId: _currentOrgId,
+          staffId: _currentStaffId,
+          status: _currentStatus,
+        );
 
-          emit(
-            AdminShiftLoaded(
-              shifts: refreshedShifts,
-              weekStart: _currentWeekStart!,
-              weekEnd: _currentWeekEnd!,
-            ),
-          );
-        } catch (e) {
-          emit(AdminShiftError(e.toString()));
-        }
+        emit(
+          AdminShiftLoaded(
+            shifts: refreshedShifts,
+            weekStart: _currentWeekStart!,
+            weekEnd: _currentWeekEnd!,
+          ),
+        );
       }
     } catch (e) {
       emit(AddEditShiftFailure(e.toString()));
@@ -366,8 +387,12 @@ class AdminShiftBloc extends Bloc<AdminShiftEvent, AdminShiftState> {
         );
       }
 
+      final isApprove = event.approve;
       final msg =
-          event.approve ? 'Shift approved successfully' : 'Shift unapproved';
+          event.approve
+              ? 'Shift approved successfully'
+              : 'Shift unapproved Successfully';
+      final color = isApprove ? success : danger;
 
       emit(
         AdminShiftActionSuccess(
@@ -375,10 +400,140 @@ class AdminShiftBloc extends Bloc<AdminShiftEvent, AdminShiftState> {
           shifts: refreshed,
           weekStart: weekStart,
           weekEnd: weekEnd,
+          snackColor: color,
         ),
       );
     } catch (e) {
       emit(AdminShiftError(e.toString()));
+    }
+  }
+
+  Future<void> _onSendOrgMail(
+    SendOrganizationRosterMailEvent event,
+    Emitter<AdminShiftState> emit,
+  ) async {
+    emit(OrgMailSending());
+    try {
+      print(
+        '📧 Sending org mail: orgId=${event.organizationId}, '
+        'start=${event.startDate}, end=${event.endDate}, '
+        'includeCancelled=${event.includeCancelled}',
+      );
+
+      await sendOrganizationRosterMailUseCase(
+        startDate: event.startDate,
+        endDate: event.endDate,
+        organizationId: event.organizationId,
+        includeCancelled: event.includeCancelled,
+      );
+
+      print('✅ Org mail API success');
+      emit(OrgMailSentSuccess('Organization roster email sent'));
+    } catch (e) {
+      print('❌ Org mail API failed: $e');
+      emit(OrgMailSentFailure(e.toString()));
+    }
+  }
+
+  Future<void> _onSendStaffConfirmedMail(
+    SendStaffConfirmedMailEvent event,
+    Emitter<AdminShiftState> emit,
+  ) async {
+    emit(StaffConfirmedMailSending());
+
+    try {
+      print(
+        '📧 Sending staff confirmed mail for ${event.shiftIds.length} shifts',
+      );
+
+      final result = await sendStaffConfirmedMailUseCase(
+        shiftIds: event.shiftIds,
+      );
+
+      final sentCount = result['sent_count'] as int? ?? 0;
+      final failedCount = result['failed_count'] as int? ?? 0;
+
+      print(
+        '✅ Staff confirmed mail sent: $sentCount success, $failedCount failed',
+      );
+
+      String message;
+      if (sentCount > 0 && failedCount == 0) {
+        message =
+            sentCount == 1
+                ? 'Confirmed shift email sent successfully'
+                : 'Confirmed shift emails sent to $sentCount staff members';
+      } else if (sentCount > 0 && failedCount > 0) {
+        message = 'Emails sent to $sentCount staff. $failedCount failed.';
+      } else {
+        message = 'No emails were sent. Please check shift assignments.';
+      }
+
+      emit(
+        StaffConfirmedMailSentSuccess(
+          message: message,
+          sentCount: sentCount,
+          failedCount: failedCount,
+        ),
+      );
+    } catch (e) {
+      print('❌ Staff confirmed mail failed: $e');
+      emit(StaffConfirmedMailSentFailure(e.toString()));
+    }
+  }
+
+  Future<void> _onSendStaffAvailableShiftMail(
+    SendStaffAvailableShiftMailEvent event,
+    Emitter<AdminShiftState> emit,
+  ) async {
+    emit(StaffAvailableShiftMailSending());
+
+    try {
+      print(
+        '📧 Sending staff available shift mail for ${event.shiftIds.length} shifts',
+      );
+
+      final result = await sendStaffAvailableShiftMailUseCase(
+        shiftIds: event.shiftIds,
+      );
+
+      final sentCount = result['sent_count'] as int? ?? 0;
+      final failedCount = result['failed_count'] as int? ?? 0;
+      final totalEligible = result['total_eligible'] as int? ?? 0;
+
+      print(
+        '✅ Staff available shift mail sent: $sentCount success, '
+        '$failedCount failed, $totalEligible eligible',
+      );
+
+      String message;
+      if (sentCount > 0 && failedCount == 0) {
+        message =
+            sentCount == 1
+                ? 'Available shift email sent to 1 eligible staff member'
+                : 'Available shift emails sent to $sentCount eligible staff members';
+      } else if (sentCount > 0 && failedCount > 0) {
+        message =
+            'Emails sent to $sentCount staff. $failedCount failed. '
+            'Total eligible: $totalEligible';
+      } else if (totalEligible == 0) {
+        message = 'No eligible staff found for these shifts.';
+      } else {
+        message =
+            'No emails were sent. $totalEligible staff were eligible but emails failed.';
+      }
+
+      emit(
+        StaffAvailableShiftMailSentSuccess(
+          message: message,
+          sentCount: sentCount,
+          failedCount: failedCount,
+          totalEligible: totalEligible,
+        ),
+      );
+    } catch (e) {
+      print('❌ Staff available shift mail failed: $e');
+      emit(StaffAvailableShiftMailSentFailure(e.toString()));
     }
   }
 }

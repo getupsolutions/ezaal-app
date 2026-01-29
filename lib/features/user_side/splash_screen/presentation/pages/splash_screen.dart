@@ -65,7 +65,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 child: FittedBox(
                   fit: BoxFit.contain,
                   child: SplashLogoAnimation(
-                    child: Image.asset('assets/Logo/Media.jpeg'),
+                    child: Image.asset('assets/Logo/Media.png'),
                   ),
                 ),
               ),

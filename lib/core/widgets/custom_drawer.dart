@@ -7,6 +7,7 @@ import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_blo
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_state.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/pages/user_details_page.dart';
 import 'package:ezaal/features/user_side/roster_page/presentation/pages/roster_page.dart';
+import 'package:ezaal/features/user_side/staff_availbility_page/presentation/screen/staff_availbility_page.dart';
 import 'package:ezaal/features/user_side/timesheet_page/presentation/screen/timesheet_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -264,6 +265,25 @@ class _CustomDrawerState extends State<CustomDrawer> {
                           ),
                           onTap: () => NavigatorHelper.push(ClockInOutPage()),
                         ),
+                        ListTile(
+                          leading: SVGImageView(
+                            image: 'assets/svg/event-svgrepo-com.svg',
+                            width: iconSize,
+                            height: iconSize,
+                            color: Colors.white,
+                          ),
+                          title: Text(
+                            'Staff Availablity',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: kWhite,
+                              fontSize: titleFontSize,
+                            ),
+                          ),
+                          onTap:
+                              () =>
+                                  NavigatorHelper.push(StaffAvailbilityPage()),
+                        ),
                       ],
                     ),
                   ),
@@ -281,7 +301,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Divider(
-                          color: Colors.white.withOpacity(0.3),
+                          color: Colors.white.withAlpha(13),
                           thickness: 1,
                         ),
                         SizedBox(height: verticalPadding),
@@ -293,7 +313,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                               Text(
                                 'Developed by ',
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.7),
+                                  color: Colors.white.withAlpha(17),
                                   fontSize: subtitleFontSize,
                                 ),
                               ),

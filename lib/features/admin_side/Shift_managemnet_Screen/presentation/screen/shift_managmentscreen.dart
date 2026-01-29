@@ -1,4 +1,5 @@
 import 'package:ezaal/core/constant/constant.dart';
+import 'package:ezaal/core/widgets/confirmation_widget.dart';
 import 'package:ezaal/core/widgets/custom_appbar.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/shift_item.dart';
@@ -7,6 +8,7 @@ import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/b
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shiftevent.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/screen/add_shift_screen.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/screen/shift_view_page.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/widget/mail_success_oast_widge.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/widget/shift_filter_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -33,6 +35,12 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
     } catch (_) {
       return raw; // fallback if parsing fails
     }
+  }
+
+  bool _isCancelledShift(ShiftItem shift) {
+    final status = shift.status.toLowerCase().trim();
+    // covers: cancelled, canceled, cancel, cancel-shift, etc.
+    return status.contains('cancel');
   }
 
   @override
@@ -87,6 +95,47 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
     final weekEnd = selectedWeekStart.add(const Duration(days: 6));
     return '${DateFormat('dd/MM/yyyy').format(selectedWeekStart)} - '
         '${DateFormat('dd/MM/yyyy').format(weekEnd)}';
+  }
+
+  OverlayEntry? _toastEntry;
+
+  void _showSuccessToast(
+    String message, {
+    Duration duration = const Duration(seconds: 2),
+  }) {
+    if (!mounted) return;
+
+    // Remove old toast if any
+    _toastEntry?.remove();
+    _toastEntry = null;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final overlay = Overlay.of(context, rootOverlay: true); // ✅ IMPORTANT
+      if (overlay == null) return;
+
+      _toastEntry = OverlayEntry(
+        builder:
+            (_) => TopToast(
+              message: message,
+              duration: duration,
+              onFinish: () {
+                _toastEntry?.remove();
+                _toastEntry = null;
+              },
+            ),
+      );
+
+      overlay.insert(_toastEntry!);
+    });
+  }
+
+  @override
+  void dispose() {
+    _toastEntry?.remove();
+    _toastEntry = null;
+    super.dispose();
   }
 
   @override
@@ -156,6 +205,22 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                           // 🔥 When Add/Edit shift succeeds, reload current week
                           else if (state is AddEditShiftSuccess) {
                             _loadWeek();
+                          } else if (state is OrgMailSentSuccess) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(state.message),
+                                duration: const Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          } else if (state is OrgMailSentFailure) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Mail failed: ${state.error}'),
+                                backgroundColor: Colors.red,
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
                           }
 
                           // ⭐ NEW: whenever we get a loaded state, cache it
@@ -217,6 +282,7 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                           final dayShifts =
                               displayState.shifts
                                   .where((s) => s.date == selectedDayStr)
+                                  .where((s) => !_isCancelledShift(s))
                                   .toList();
 
                           if (dayShifts.isEmpty) {
@@ -419,7 +485,7 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withAlpha(105),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -469,7 +535,7 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
               vertical: height * 0.008,
             ),
             decoration: BoxDecoration(
-              color: primaryDarK.withOpacity(0.9),
+              color: primaryDarK.withAlpha(90),
               border: Border(
                 bottom: BorderSide(color: Colors.grey[300]!, width: 1),
               ),
@@ -610,7 +676,20 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
           height: height,
           fontScale: fontScale,
           tooltip: 'Cancel staff',
-          onTap: () {
+          onTap: () async {
+            final ok = await ConfirmationDialog.show(
+              context,
+              title: 'Remove staff?',
+              message: 'Do you want to remove assigned staff from this shift?',
+              confirmText: 'Remove',
+              cancelText: 'No',
+              confirmColor: Colors.red,
+              icon: Icons.person_remove_alt_1,
+            );
+
+            if (!ok) return;
+
+            if (!context.mounted) return;
             context.read<AdminShiftBloc>().add(
               CancelAdminShiftStaffEvent(shiftId: shift.id),
             );
@@ -648,7 +727,20 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
         height: height,
         fontScale: fontScale,
         tooltip: 'Add staff',
-        onTap: () {
+        onTap: () async {
+          final ok = await ConfirmationDialog.show(
+            context,
+            title: 'Assign staff?',
+            message: 'Do you want to assign staff to this shift?',
+            confirmText: 'Proceed',
+            cancelText: 'No',
+            confirmColor: Colors.green,
+            icon: Icons.person_add_alt_1,
+          );
+
+          if (!ok) return;
+
+          if (!context.mounted) return;
           NavigatorHelper.push(AddEditShiftScreen(existingShift: shift));
         },
       ),
@@ -658,7 +750,20 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
         height: height,
         fontScale: fontScale,
         tooltip: 'Cancel shift request',
-        onTap: () {
+        onTap: () async {
+          final ok = await ConfirmationDialog.show(
+            context,
+            title: 'Cancel shift?',
+            message: 'This will cancel the shift request. Continue?',
+            confirmText: 'Cancel Shift',
+            cancelText: 'No',
+            confirmColor: Colors.black,
+            icon: Icons.cancel,
+          );
+
+          if (!ok) return;
+
+          if (!context.mounted) return;
           context.read<AdminShiftBloc>().add(
             CancelAdminShiftEvent(shiftId: shift.id),
           );

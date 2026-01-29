@@ -1,4 +1,5 @@
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/savde_admin_shiftmodel.dart';
+import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/save_shift_respo.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/shift_item.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/shift_master_model.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/update_shift_attendence_model.dart';
@@ -43,7 +44,7 @@ class AdminShiftRepositoryImpl implements AdminShiftRepository {
   }
 
   @override
-  Future<void> saveShift(SaveAdminShiftParams params) {
+  Future<SaveShiftResponse> saveShift(SaveAdminShiftParams params) {
     return remote.saveShift(params);
   }
 
@@ -73,5 +74,34 @@ class AdminShiftRepositoryImpl implements AdminShiftRepository {
     required bool approve,
   }) {
     return remote.updateShiftStatus(shiftId: shiftId, approve: approve);
+  }
+
+  @override
+  Future<void> sendOrganizationRosterMail({
+    required DateTime startDate,
+    required DateTime endDate,
+    required int organizationId,
+    required bool includeCancelled,
+  }) {
+    return remote.sendOrganizationRosterMail(
+      startDate: startDate,
+      endDate: endDate,
+      organizationId: organizationId,
+      includeCancelled: includeCancelled,
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> sendStaffConfirmedMail({
+    required List<int> shiftIds,
+  }) {
+    return remote.sendStaffConfirmedMail(shiftIds: shiftIds);
+  }
+
+  @override
+  Future<Map<String, dynamic>> sendStaffAvailableShiftMail({
+    required List<int> shiftIds,
+  }) {
+    return remote.sendStaffAvailableShiftMail(shiftIds: shiftIds);
   }
 }

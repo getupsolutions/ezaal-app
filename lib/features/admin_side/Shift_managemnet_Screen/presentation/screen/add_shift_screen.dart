@@ -4,6 +4,7 @@ import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/shi
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_bloc.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_state.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shiftevent.dart';
+import 'package:ezaal/features/admin_side/staff%20availabilty%20Page/domain/entity/admin_availablit_entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -13,9 +14,26 @@ class AddEditShiftScreen extends StatefulWidget {
 
   /// initial date passed from ShiftManagmentscreen
   final DateTime? initialDate;
+  final int? initialOrgId;
+  final int? initialStaffTypeId;
+  final int? initialStaffId;
+  final int? initialDepartmentId;
 
-  const AddEditShiftScreen({Key? key, this.existingShift, this.initialDate})
-    : super(key: key);
+  // ✅ extra inputs from Availability page
+  final String? initialStaffName;
+  final AdminAvailablitEntity? initialAvailability;
+
+  const AddEditShiftScreen({
+    Key? key,
+    this.existingShift,
+    this.initialDate,
+    this.initialOrgId,
+    this.initialStaffTypeId,
+    this.initialStaffId,
+    this.initialDepartmentId,
+    this.initialStaffName,
+    this.initialAvailability,
+  }) : super(key: key);
 
   @override
   State<AddEditShiftScreen> createState() => _AddEditShiftScreenState();
@@ -49,11 +67,42 @@ class _AddEditShiftScreenState extends State<AddEditShiftScreen> {
     // Use initialDate if provided, otherwise today
     selectedDate = widget.initialDate ?? DateTime.now();
 
+    // defaults (can be overridden by availability below)
     startTimeController.text = '07:00';
     endTimeController.text = '15:30';
     breakController.text = '30';
 
+    // ✅ If coming from Availability page: prefill staff + org + date + times
+    if (widget.initialOrgId != null) {
+      _selectedOrgId = widget.initialOrgId;
+    }
+    if (widget.initialStaffTypeId != null) {
+      _selectedStaffTypeId = widget.initialStaffTypeId;
+    }
+    if (widget.initialStaffId != null) {
+      _selectedStaffId = widget.initialStaffId;
+    }
+    if (widget.initialDepartmentId != null) {
+      _selectedDepartmentId = widget.initialDepartmentId;
+    }
+
+    final av = widget.initialAvailability;
+    if (av != null) {
+      // Pick first available slot
+      if ((av.amfrom ?? "").isNotEmpty && (av.amto ?? "").isNotEmpty) {
+        startTimeController.text = (av.amfrom ?? "").substring(0, 5);
+        endTimeController.text = (av.amto ?? "").substring(0, 5);
+      } else if ((av.pmfrom ?? "").isNotEmpty && (av.pmto ?? "").isNotEmpty) {
+        startTimeController.text = (av.pmfrom ?? "").substring(0, 5);
+        endTimeController.text = (av.pmto ?? "").substring(0, 5);
+      } else if ((av.n8from ?? "").isNotEmpty && (av.n8to ?? "").isNotEmpty) {
+        startTimeController.text = (av.n8from ?? "").substring(0, 5);
+        endTimeController.text = (av.n8to ?? "").substring(0, 5);
+      }
+    }
+
     if (widget.existingShift != null) {
+      // ✅ EDIT MODE should override availability-prefill
       final s = widget.existingShift!;
       selectedDate = DateTime.tryParse(s.date) ?? selectedDate;
 
@@ -108,7 +157,18 @@ class _AddEditShiftScreenState extends State<AddEditShiftScreen> {
     if (_initializedSelections) return;
     _initializedSelections = true;
 
+    // ✅ If initial values were passed, prefer them (availability navigation)
+    if (widget.initialOrgId != null) _selectedOrgId = widget.initialOrgId;
+    if (widget.initialStaffTypeId != null) {
+      _selectedStaffTypeId = widget.initialStaffTypeId;
+    }
+    if (widget.initialStaffId != null) _selectedStaffId = widget.initialStaffId;
+    if (widget.initialDepartmentId != null) {
+      _selectedDepartmentId = widget.initialDepartmentId;
+    }
+
     if (widget.existingShift != null) {
+      // ✅ EDIT MODE overrides initial values (because shift already exists)
       final s = widget.existingShift!;
 
       // Organization by name
@@ -134,7 +194,7 @@ class _AddEditShiftScreenState extends State<AddEditShiftScreen> {
         _selectedStaffId = st.id;
       }
 
-      // Department: here we try match by department name if ShiftItem has it
+      // Department: match by department name if ShiftItem has it
       if (_departments.isNotEmpty && s.departmentName != null) {
         try {
           final dept = _departments.firstWhere(
@@ -148,13 +208,13 @@ class _AddEditShiftScreenState extends State<AddEditShiftScreen> {
         _selectedDepartmentId = _departments.first.id;
       }
     } else {
-      // Defaults for "create new shift"
-      _selectedOrgId =
+      // Defaults for "create new shift" (only if still null)
+      _selectedOrgId ??=
           _organizations.isNotEmpty ? _organizations.first.id : null;
-      _selectedStaffTypeId =
+      _selectedStaffTypeId ??=
           _staffTypes.isNotEmpty ? _staffTypes.first.id : null;
-      _selectedStaffId = null;
-      _selectedDepartmentId =
+      _selectedStaffId ??= null;
+      _selectedDepartmentId ??=
           _departments.isNotEmpty ? _departments.first.id : null;
     }
   }
@@ -166,15 +226,9 @@ class _AddEditShiftScreenState extends State<AddEditShiftScreen> {
     return BlocListener<AdminShiftBloc, AdminShiftState>(
       listener: (context, state) {
         if (state is AddEditShiftSuccess) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                isEdit
-                    ? 'Shift updated successfully'
-                    : 'Shift created (pending approval)',
-              ),
-            ),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
           Navigator.pop(context, true);
         } else if (state is AddEditShiftFailure) {
           ScaffoldMessenger.of(
@@ -326,6 +380,41 @@ class _AddEditShiftScreenState extends State<AddEditShiftScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ✅ PREFILL SUMMARY (Availability -> Shift)
+                if (widget.initialStaffId != null ||
+                    widget.initialAvailability != null)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFB2DFDB)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Selected from Availability",
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 8),
+                        if (widget.initialStaffName != null)
+                          Text("Staff: ${widget.initialStaffName}"),
+                        Text(
+                          "Date: ${DateFormat('dd/MM/yyyy').format(selectedDate)}",
+                        ),
+                        if (widget.initialAvailability != null)
+                          Text(
+                            "Availability: ${AvailabilityUtils.summaryLine(context, widget.initialAvailability!)}",
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+
                 // Organization
                 buildLabel('Organization', fontSize: labelFontSize),
                 _buildDropdown<int>(
@@ -360,23 +449,6 @@ class _AddEditShiftScreenState extends State<AddEditShiftScreen> {
                       (val) => setState(() => _selectedStaffTypeId = val),
                 ),
                 const SizedBox(height: 20),
-
-                // Date selector (optional but nice for responsiveness)
-                // Row(
-                //   children: [
-                //     Expanded(
-                //       child: buildLabel('Date', fontSize: labelFontSize),
-                //     ),
-                //     TextButton.icon(
-                //       onPressed: _selectDate,
-                //       icon: const Icon(Icons.calendar_today, size: 18),
-                //       label: Text(
-                //         DateFormat('dd/MM/yyyy').format(selectedDate),
-                //       ),
-                //     ),
-                //   ],
-                // ),
-                // const SizedBox(height: 8),
 
                 // Time row (responsive)
                 LayoutBuilder(
@@ -787,5 +859,44 @@ class _AddEditShiftScreenState extends State<AddEditShiftScreen> {
         ),
       ),
     );
+  }
+}
+
+/// ✅ Small helper (so this file compiles even if you didn't import the other utils)
+class AvailabilityUtils {
+  static TimeOfDay? _parseTimeOfDay(String? s) {
+    if (s == null) return null;
+    final v = s.trim();
+    if (v.isEmpty) return null;
+    final parts = v.split(':');
+    if (parts.length < 2) return null;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return null;
+    return TimeOfDay(hour: h, minute: m);
+  }
+
+  static String summaryLine(BuildContext context, AdminAvailablitEntity a) {
+    final parts = <String>[];
+
+    String fmt(String? s) {
+      final t = _parseTimeOfDay(s);
+      return t == null ? "" : t.format(context);
+    }
+
+    if ((a.amfrom ?? "").isNotEmpty && (a.amto ?? "").isNotEmpty) {
+      parts.add("AM: ${fmt(a.amfrom)} - ${fmt(a.amto)}");
+    }
+    if ((a.pmfrom ?? "").isNotEmpty && (a.pmto ?? "").isNotEmpty) {
+      parts.add("PM: ${fmt(a.pmfrom)} - ${fmt(a.pmto)}");
+    }
+    if ((a.n8from ?? "").isNotEmpty && (a.n8to ?? "").isNotEmpty) {
+      parts.add("N8: ${fmt(a.n8from)} - ${fmt(a.n8to)}");
+    }
+
+    final base = parts.isEmpty ? "Availability saved" : parts.join("  •  ");
+    final note = (a.notes ?? "").trim();
+    if (note.isNotEmpty) return "$base\nNotes: $note";
+    return base;
   }
 }

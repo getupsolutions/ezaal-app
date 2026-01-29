@@ -99,3 +99,19 @@ class ShiftMastersDto {
     );
   }
 }
+class UnreadCountDto {
+  final int unreadCount;
+
+  const UnreadCountDto({required this.unreadCount});
+
+  factory UnreadCountDto.fromJson(Map<String, dynamic> json) {
+    // supports: {data:{unread_count:...}} OR {unread_count:...}
+    final raw =
+        (json['data'] is Map<String, dynamic>)
+            ? (json['data'] as Map<String, dynamic>)['unread_count']
+            : json['unread_count'];
+
+    final parsed = raw is int ? raw : int.tryParse(raw?.toString() ?? '') ?? 0;
+    return UnreadCountDto(unreadCount: parsed);
+  }
+}

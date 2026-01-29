@@ -13,11 +13,13 @@ final kGrey = Color(0xFFBCBCBC);
 
 final kWhite = Colors.white;
 
-final kRed = Colors.red;
+final danger = Colors.red;
 
 final kPurple = Colors.purple;
 
 final kBlack = Colors.black;
+
+final success = Colors.green;
 
 
 //TEXT

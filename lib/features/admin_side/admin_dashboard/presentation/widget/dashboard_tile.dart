@@ -48,57 +48,57 @@ class DashboardTile extends StatelessWidget {
                 ? size.height * 0.11
                 : size.height * 0.12;
 
-        return Container(
-          height: containerHeight,
-          padding: EdgeInsets.symmetric(
-            horizontal:
-                isDesktop
-                    ? 40
-                    : isTablet
-                    ? 30
-                    : 20,
-            vertical:
-                isDesktop
-                    ? 20
-                    : isTablet
-                    ? 18
-                    : 16,
-          ),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.white,
-                offset: Offset(-5, -5),
-                blurRadius: 10,
-              ),
-              BoxShadow(
-                color: Colors.black12,
-                offset: Offset(5, 5),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: kWhite, size: iconSize),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: kWhite,
-                    fontSize: titleFontSize,
-                    fontWeight: FontWeight.w600,
+        return InkWell(
+          onTap: onTap,
+          child: Container(
+            height: containerHeight,
+            padding: EdgeInsets.symmetric(
+              horizontal:
+                  isDesktop
+                      ? 40
+                      : isTablet
+                      ? 30
+                      : 20,
+              vertical:
+                  isDesktop
+                      ? 20
+                      : isTablet
+                      ? 18
+                      : 16,
+            ),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.white,
+                  offset: Offset(-5, -5),
+                  blurRadius: 10,
+                ),
+                BoxShadow(
+                  color: Colors.black12,
+                  offset: Offset(5, 5),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: kWhite, size: iconSize),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: kWhite,
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-              InkWell(
-                onTap: onTap,
-                child: Text(
+                Text(
                   actionText,
                   style: TextStyle(
                     color: primaryColor,
@@ -111,8 +111,8 @@ class DashboardTile extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

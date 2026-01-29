@@ -1,6 +1,7 @@
 // features/admin_side/Shift_managemnet_Screen/presentation/screen/shift_view_page.dart
 
 import 'package:ezaal/core/constant/constant.dart';
+import 'package:ezaal/core/widgets/show_dialog.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/shift_item.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_bloc.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_state.dart';
@@ -105,13 +106,27 @@ class ShiftViewPage extends StatelessWidget {
     return BlocConsumer<AdminShiftBloc, AdminShiftState>(
       listener: (context, state) {
         if (state is AdminShiftActionSuccess) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(state.message)));
+          final messenger = ScaffoldMessenger.of(context);
+          messenger.clearSnackBars(); // ✅ clear previous
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(state.message, style: TextStyle(color: kWhite)),
+              backgroundColor: state.snackColor,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
         } else if (state is AdminShiftError) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(state.message)));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                state.message,
+                style: const TextStyle(color: Colors.white),
+              ),
+              backgroundColor: danger,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         }
       },
       builder: (context, state) {
@@ -271,6 +286,18 @@ class ShiftViewPage extends StatelessWidget {
                                 value: '${currentShift.breakMinutes} Minutes',
                               ),
                               const SizedBox(height: 4),
+
+                              // ✅ NEW: Display Staff Type Designation
+                              if (currentShift.staffTypeDesignation.isNotEmpty)
+                                InfoRow(
+                                  icon: Icons.work_outline,
+                                  label: 'Position',
+                                  value: currentShift.staffTypeDesignation,
+                                  highlight: true,
+                                ),
+                              if (currentShift.staffTypeDesignation.isNotEmpty)
+                                const SizedBox(height: 4),
+
                               InfoRow(
                                 icon: Icons.person_outline,
                                 label: 'Staff',
@@ -287,13 +314,32 @@ class ShiftViewPage extends StatelessWidget {
                                 value: currentShift.location,
                               ),
                               const SizedBox(height: 4),
-                              InfoRow(
+                              // ✅ NEW: Clock-in Location
+
+                              const SizedBox(height: 4),
+                   InfoRow(
                                 icon: Icons.check_circle_outline,
                                 label: 'Accepted date',
                                 value:
                                     '${_formatShortDateTime(currentShift.staffRequestDate)} ${currentShift.staffRequestName ?? ''}',
                                 highlight: true,
                               ),
+
+                              const SizedBox(height: 4),
+
+                              InfoRow(
+                                icon: Icons.place_outlined,
+                                label: 'Clock-in Location',
+                                value:
+                                    (currentShift.userClockinLocation == null ||
+                                            currentShift
+                                                .userClockinLocation!
+                                                .isEmpty)
+                                        ? 'No location added'
+                                        : currentShift.clockinLocationDisplay,
+                                highlight: true,
+                              ),
+
 
                               const SizedBox(height: 12),
 
@@ -418,12 +464,38 @@ class ShiftViewPage extends StatelessWidget {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: ElevatedButton.icon(
-                                      onPressed: () {
+                                      onPressed: () async {
+                                        final shiftBloc =
+                                            context.read<AdminShiftBloc>();
                                         // backend uses 'confirmed'
                                         final isCurrentlyApproved =
                                             currentShift.status == 'confirmed';
 
-                                        context.read<AdminShiftBloc>().add(
+                                        final confirmed =
+                                            await CupertinoConfirmDialog.show(
+                                              context: context,
+                                              title:
+                                                  isCurrentlyApproved
+                                                      ? "Unapprove Shift ?"
+                                                      : "Approve Shift ?",
+                                              message:
+                                                  isCurrentlyApproved
+                                                      ? "Are you sure you want to UnApprove this Shift"
+                                                      : "Are you sure you want to Approve this Shift",
+                                              confirmText:
+                                                  isCurrentlyApproved
+                                                      ? "Unapprove"
+                                                      : "Approve",
+                                              cancelText: "Cancel",
+                                              isDestructive:
+                                                  isCurrentlyApproved,
+                                              contentWidget:
+                                                  _shiftConfirmDetails(
+                                                    currentShift,
+                                                  ),
+                                            );
+                                        if (!confirmed) return;
+                                        shiftBloc.add(
                                           ToggleShiftApprovalEvent(
                                             shiftId: currentShift.id,
                                             approve: !isCurrentlyApproved,
@@ -479,6 +551,58 @@ class ShiftViewPage extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _shiftConfirmDetails(ShiftItem s) {
+    String safe(String? v) => (v == null || v.isEmpty) ? '-' : v;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _dialogLine("Date", _formatDate(s.date)),
+          _dialogLine("Time", safe(s.time)),
+          // ✅ NEW: Show staff type designation in confirmation dialog
+          if (s.staffTypeDesignation.isNotEmpty)
+            _dialogLine("Position", s.staffTypeDesignation),
+          _dialogLine(
+            "Staff",
+            s.staffName.isEmpty ? "Unassigned" : s.staffName,
+          ),
+          _dialogLine("Location", safe(s.location)),
+          _dialogLine("Break", "${safe(s.breakMinutes)} min"),
+          const SizedBox(height: 6),
+          _dialogLine(
+            "Clock In",
+            "${_formatOnlyTime(s.signIn)} (${_mapClockType(s.signInType)})",
+          ),
+          _dialogLine(
+            "Clock Out",
+            "${_formatOnlyTime(s.signOut)} (${_mapClockType(s.signOutType)})",
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dialogLine(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              "$label:",
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
     );
   }
 

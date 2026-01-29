@@ -43,3 +43,51 @@ class CupertinoDialogActionModel {
     this.isDefaultAction = false,
   });
 }
+
+
+
+class CupertinoConfirmDialog {
+  static Future<bool> show({
+    required BuildContext context,
+    required String title,
+
+    /// Use either message OR contentWidget
+    String? message,
+    Widget? contentWidget,
+
+    String confirmText = "Confirm",
+    String cancelText = "Cancel",
+    bool isDestructive = false,
+  }) async {
+    final result = await showCupertinoDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return CupertinoAlertDialog(
+          title: Text(title),
+          content: contentWidget ??
+              (message != null
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(message),
+                    )
+                  : null),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(cancelText),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: isDestructive,
+              isDefaultAction: !isDestructive,
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(confirmText),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+}
