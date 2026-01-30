@@ -5,12 +5,8 @@ class GetAvailabilityUseCase {
   final AvailabilityRepository repo;
   GetAvailabilityUseCase(this.repo);
 
-  Future<List<AvailabilityEntity>> call(
-    String start,
-    String end, {
-    int? organiz,
-  }) {
-    return repo.getAvailability(start, end, organiz: organiz);
+  Future<List<AvailabilityEntity>> call(String start, String end) {
+    return repo.getAvailability(start, end);
   }
 }
 
@@ -25,8 +21,8 @@ class DeleteAvailabilityUseCase {
   final AvailabilityRepository repo;
   DeleteAvailabilityUseCase(this.repo);
 
-  Future<void> call(DateTime date, {int? organiz}) =>
-      repo.deleteAvailability(date, organiz: organiz);
+  Future<void> call(DateTime date, String shift) =>
+      repo.deleteAvailability(date, shift);
 }
 
 class EditAvailabilityUseCase {

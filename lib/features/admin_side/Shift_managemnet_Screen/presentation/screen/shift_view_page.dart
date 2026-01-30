@@ -28,15 +28,16 @@ class ShiftViewPage extends StatelessWidget {
     }
   }
 
-  String _formatDate(String raw) {
+String _formatDate(String raw) {
     try {
       final d = DateTime.parse(raw);
-      // day/month/year
-      return DateFormat('dd/MM/yyyy').format(d);
+      // Friday Jan 2026
+      return DateFormat('EEEE MMM yyyy').format(d);
     } catch (_) {
       return raw;
     }
   }
+
 
   String _formatShortDateTime(String? raw) {
     final dt = _parseDateTime(raw);

@@ -7,11 +7,10 @@ class AvailabilityRemoteDataSource {
   final String baseUrl = 'https://app.ezaalhealthcare.com.au/api/v1/public';
 
   /// Fetch availability within a date range
-  /// Body: { start_date: "YYYY-MM-DD", end_date: "YYYY-MM-DD", organiz?: int }
+  /// Body: { start_date: "YYYY-MM-DD", end_date: "YYYY-MM-DD" }
   Future<List<AvailabilityModel>> getAvailability({
     required String startDate,
     required String endDate,
-    int? organiz,
   }) async {
     try {
       final response = await TokenRefreshService.makeAuthenticatedRequest(
@@ -21,11 +20,7 @@ class AvailabilityRemoteDataSource {
             'Authorization': 'Bearer $token',
             'Content-Type': 'application/json',
           },
-          body: jsonEncode({
-            'start_date': startDate,
-            'end_date': endDate,
-            if (organiz != null) 'organiz': organiz,
-          }),
+          body: jsonEncode({'start_date': startDate, 'end_date': endDate}),
         ),
       );
 
@@ -78,14 +73,8 @@ class AvailabilityRemoteDataSource {
     }
   }
 
-  /// Save (insert/update) availability for a date
-  /// Body should match DB columns:
-  /// {
-  ///   dte: "YYYY-MM-DD",
-  ///   organiz?: int,
-  ///   amfrom, amto, pmfrom, pmto, n8from, n8to
-  /// }
-  /// If backend returns 409 => conflict with shift
+  /// Save (insert/update) availability for a date and shift
+  /// Body: { dateof: "YYYY-MM-DD", shift: "AM"|"PM"|"NIGHT", fromtime, totime, notes }
   Future<void> saveAvailability(AvailabilityModel model) async {
     try {
       final response = await TokenRefreshService.makeAuthenticatedRequest(
@@ -130,11 +119,54 @@ class AvailabilityRemoteDataSource {
     }
   }
 
-  /// Delete availability for a date
-  /// Body: { dte: "YYYY-MM-DD", organiz?: int }
+  /// Edit availability - uses same endpoint as save (upsert)
+  Future<void> editAvailability(AvailabilityModel model) async {
+    try {
+      final response = await TokenRefreshService.makeAuthenticatedRequest(
+        (token) => http.post(
+          Uri.parse('$baseUrl/edit-availability'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(model.toJson()),
+        ),
+      );
+
+      print('✏️ editAvailability status: ${response.statusCode}');
+      print('editAvailability body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return;
+      }
+
+      String msg = 'Failed to edit availability';
+      try {
+        final decoded = jsonDecode(response.body);
+        msg = (decoded?['message'] ?? msg).toString();
+      } catch (_) {}
+
+      if (response.statusCode == 409) {
+        throw Exception(msg);
+      }
+
+      throw Exception('$msg (${response.statusCode})');
+    } catch (e) {
+      print('❌ Error editing availability: $e');
+
+      if (e.toString().contains('Session expired')) {
+        rethrow;
+      }
+
+      throw Exception('Failed to edit availability: $e');
+    }
+  }
+
+  /// Delete availability for a specific date and shift
+  /// Body: { dateof: "YYYY-MM-DD", shift: "AM"|"PM"|"NIGHT" }
   Future<void> deleteAvailability({
-    required String dte, // "YYYY-MM-DD"
-    int? organiz,
+    required String dateof,
+    required String shift,
   }) async {
     try {
       final response = await TokenRefreshService.makeAuthenticatedRequest(
@@ -145,8 +177,8 @@ class AvailabilityRemoteDataSource {
             'Content-Type': 'application/json',
           },
           body: jsonEncode({
-            'dte': dte,
-            if (organiz != null) 'organiz': organiz,
+            'dateof': dateof,
+            'shift': shift, // ✅ Now includes shift parameter
           }),
         ),
       );
@@ -163,9 +195,9 @@ class AvailabilityRemoteDataSource {
       } catch (_) {}
 
       if (response.statusCode == 404) {
-        // If you prefer: treat as success (already deleted)
-        // return;
-        throw Exception(msg);
+        // Treat as success - already deleted
+        print('⚠️ 404 on delete - treating as success (already deleted)');
+        return;
       }
 
       throw Exception('$msg (${response.statusCode})');
@@ -177,35 +209,6 @@ class AvailabilityRemoteDataSource {
       }
 
       throw Exception('Failed to delete availability: $e');
-    }
-  }
-
-  Future<void> editAvailability(AvailabilityModel model) async {
-    try {
-      final response = await TokenRefreshService.makeAuthenticatedRequest(
-        (token) => http.post(
-          Uri.parse('$baseUrl/edit-availability'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(model.toJson()),
-        ),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) return;
-
-      String msg = 'Failed to edit availability';
-      try {
-        final decoded = jsonDecode(response.body);
-        msg = (decoded?['message'] ?? msg).toString();
-      } catch (_) {}
-
-      if (response.statusCode == 409) throw Exception(msg);
-      throw Exception('$msg (${response.statusCode})');
-    } catch (e) {
-      if (e.toString().contains('Session expired')) rethrow;
-      throw Exception('Failed to edit availability: $e');
     }
   }
 }

@@ -1,5 +1,4 @@
 import 'package:ezaal/core/constant/constant.dart';
-import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/shift_master_model.dart';
 import 'package:ezaal/features/user_side/staff_availbility_page/domain/entity/availability_entity.dart';
 import 'package:ezaal/features/user_side/staff_availbility_page/presentation/bloc/availbility_bloc.dart';
 import 'package:ezaal/features/user_side/staff_availbility_page/presentation/bloc/availbility_event.dart';
@@ -43,25 +42,18 @@ class AvailabilityCalendarCard extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, c) {
             final h = c.maxHeight;
-
-            // allocate top area for calendar; bottom area for panel
             final calH = (h * 0.68).clamp(140.0, h);
 
-            // These heights are used by TableCalendar layout
-            const headerH = 56.0; // safe header height
-            const dowH = 20.0; // days-of-week row height
+            const headerH = 56.0;
+            const dowH = 20.0;
             const minRowH = 22.0;
             const maxRowH = 56.0;
 
-            // If calendar area is too small for a month grid, switch to 2 weeks.
-            final isTight = calH < (headerH + dowH + 6 * minRowH); // ~208
+            final isTight = calH < (headerH + dowH + 6 * minRowH);
             final format =
                 isTight ? CalendarFormat.twoWeeks : CalendarFormat.month;
 
-            // Month view uses up to 6 rows; twoWeeks uses 2 rows.
             final rows = (format == CalendarFormat.month) ? 6 : 2;
-
-            // Compute row height from remaining space so it NEVER overflows.
             final availableForRows = (calH - headerH - dowH).clamp(0.0, calH);
             final rowHeight = (availableForRows / rows).clamp(minRowH, maxRowH);
 
@@ -75,23 +67,19 @@ class AvailabilityCalendarCard extends StatelessWidget {
                         firstDay: DateTime(2020),
                         lastDay: DateTime(2100),
                         focusedDay: focusedDay,
-                        calendarFormat: format, // ✅ adaptive (month/twoWeeks)
+                        calendarFormat: format,
                         availableCalendarFormats: const {
                           CalendarFormat.month: 'Month',
                           CalendarFormat.twoWeeks: '2 weeks',
                         },
-                        // keep layout predictable
                         sixWeekMonthsEnforced: true,
                         startingDayOfWeek: StartingDayOfWeek.monday,
                         selectedDayPredicate:
                             (day) => isSameDay(selectedDay, day),
                         onDaySelected: (d, f) => onDaySelected(d, f),
                         onPageChanged: onPageChanged,
-
-                        // ✅ key bits that prevent overflow
                         daysOfWeekHeight: dowH,
                         rowHeight: rowHeight,
-
                         calendarBuilders: CalendarBuilders(
                           markerBuilder: (context, day, events) {
                             if (hasAvailability(day)) {
@@ -143,10 +131,7 @@ class AvailabilityCalendarCard extends StatelessWidget {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 12),
-
-                // ✅ bottom panel uses remaining height and scrolls if needed
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
@@ -166,20 +151,17 @@ class AvailabilityBottomPanel extends StatelessWidget {
   const AvailabilityBottomPanel({
     super.key,
     required this.selectedDay,
-    required this.entity,
-    required this.selectedOrgId,
+    required this.entities,
     required this.onRemove,
   });
 
   final DateTime? selectedDay;
-  final AvailabilityEntity? entity;
-  final int? selectedOrgId;
-  final void Function(AvailabilityEntity entity) onRemove;
+  final List<AvailabilityEntity> entities;
+  final Future<void> Function(AvailabilityEntity entity) onRemove;
 
   @override
   Widget build(BuildContext context) {
     final selected = selectedDay;
-    final data = entity;
 
     return Container(
       width: double.infinity,
@@ -218,28 +200,55 @@ class AvailabilityBottomPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.event_available, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  selected == null
-                      ? "Select a date to mark availability."
-                      : (data == null
-                          ? "No availability added for selected date."
-                          : AvailabilityUtils.summaryLine(context, data)),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+          if (selected == null)
+            const Row(
+              children: [
+                Icon(Icons.event_available, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Select a date to mark availability.",
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            )
+          else if (entities.isEmpty)
+            const Row(
+              children: [
+                Icon(Icons.event_available, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "No availability added for selected date.",
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            )
+          else
+            ...entities.map(
+              (e) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.event_available, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        AvailabilityUtils.summaryLine(context, e),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => onRemove(e),
+                      child: const Text("Remove"),
+                    ),
+                  ],
                 ),
               ),
-              if (selected != null && data != null)
-                TextButton(
-                  onPressed: () => onRemove(data),
-                  child: const Text("Remove"),
-                ),
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -256,11 +265,17 @@ class AvailabilityListCard extends StatelessWidget {
 
   final List<AvailabilityEntity> items;
   final void Function(AvailabilityEntity entity) onEdit;
-  final void Function(AvailabilityEntity entity) onRemove;
+  final Future<void> Function(AvailabilityEntity entity) onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final sorted = [...items]..sort((a, b) => a.date.compareTo(b.date));
+    final sorted = [...items]..sort((a, b) {
+      final dateComp = a.date.compareTo(b.date);
+      if (dateComp != 0) return dateComp;
+      // Sort by shift within same date: AM, PM, NIGHT
+      final shiftOrder = {'AM': 0, 'PM': 1, 'NIGHT': 2};
+      return (shiftOrder[a.shift] ?? 3).compareTo(shiftOrder[b.shift] ?? 3);
+    });
 
     return Card(
       elevation: 2,
@@ -280,8 +295,6 @@ class AvailabilityListCard extends StatelessWidget {
               style: TextStyle(color: Colors.black54),
             ),
             const SizedBox(height: 12),
-
-            // ✅ List takes remaining height and is scrollable
             Expanded(
               child:
                   sorted.isEmpty
@@ -350,24 +363,20 @@ class AvailabilityUtils {
   }
 
   static String summaryLine(BuildContext context, AvailabilityEntity a) {
-    final parts = <String>[];
-
     String fmt(String? s) {
       final t = parseTimeOfDay(s);
       return t == null ? "" : t.format(context);
     }
 
-    if ((a.amFrom ?? "").isNotEmpty && (a.amTo ?? "").isNotEmpty) {
-      parts.add("AM: ${fmt(a.amFrom)} - ${fmt(a.amTo)}");
-    }
-    if ((a.pmFrom ?? "").isNotEmpty && (a.pmTo ?? "").isNotEmpty) {
-      parts.add("PM: ${fmt(a.pmFrom)} - ${fmt(a.pmTo)}");
-    }
-    if ((a.n8From ?? "").isNotEmpty && (a.n8To ?? "").isNotEmpty) {
-      parts.add("N8: ${fmt(a.n8From)} - ${fmt(a.n8To)}");
+    final from = fmt(a.fromtime);
+    final to = fmt(a.totime);
+
+    String timeStr = '';
+    if (from.isNotEmpty && to.isNotEmpty) {
+      timeStr = '$from - $to';
     }
 
-    final base = parts.isEmpty ? "Availability saved" : parts.join("  •  ");
+    final base = '${a.shift}${timeStr.isNotEmpty ? ': $timeStr' : ''}';
 
     if ((a.notes ?? "").trim().isNotEmpty) {
       return "$base\nNotes: ${a.notes!.trim()}";
@@ -417,7 +426,7 @@ class _AvailabilityTile extends StatelessWidget {
   final String subtitle;
   final String? notes;
   final VoidCallback onEdit;
-  final VoidCallback onRemove;
+  final Future<void> Function() onRemove;
 
   const _AvailabilityTile({
     required this.title,
@@ -479,42 +488,46 @@ class _AvailabilityTile extends StatelessWidget {
   }
 }
 
-enum AvShift { am, pm, night }
+/// =========================
+/// Dialog for Adding/Editing
+/// =========================
+
+// Replace the showAddAvailabilityDialog function with this fixed version:
 
 Future<void> showAddAvailabilityDialog({
   required BuildContext context,
-  required List<OrganizationDto> organizations,
-  int? initialOrganiz,
   DateTime? initialDate,
-  AvailabilityEntity? existing,
+  List<AvailabilityEntity>? existingList,
 }) async {
   final df = DateFormat('dd-MM-yyyy');
 
-  DateTime start = existing?.date ?? initialDate ?? DateTime.now();
-  DateTime end = existing?.date ?? initialDate ?? DateTime.now();
+  DateTime start = initialDate ?? DateTime.now();
+  DateTime end = initialDate ?? DateTime.now();
 
-  AvShift shift = AvShift.am;
-  String? existingFrom;
-  String? existingTo;
+  // Default to AM shift
+  String shift = 'AM';
 
-  int? organiz = existing?.organiz ?? initialOrganiz;
+  // ✅ FIX: Properly identify which shift to edit
+  AvailabilityEntity? existingToEdit;
+  if (existingList != null && existingList.isNotEmpty) {
+    // Find which shift is missing (to suggest for new entry)
+    final existingShifts = existingList.map((e) => e.shift).toSet();
 
-  if (existing != null) {
-    if ((existing.amFrom ?? '').isNotEmpty &&
-        (existing.amTo ?? '').isNotEmpty) {
-      shift = AvShift.am;
-      existingFrom = existing.amFrom;
-      existingTo = existing.amTo;
-    } else if ((existing.pmFrom ?? '').isNotEmpty &&
-        (existing.pmTo ?? '').isNotEmpty) {
-      shift = AvShift.pm;
-      existingFrom = existing.pmFrom;
-      existingTo = existing.pmTo;
-    } else if ((existing.n8From ?? '').isNotEmpty &&
-        (existing.n8To ?? '').isNotEmpty) {
-      shift = AvShift.night;
-      existingFrom = existing.n8From;
-      existingTo = existing.n8To;
+    // If all three shifts exist, default to editing the first one
+    if (existingShifts.length == 3) {
+      existingToEdit = existingList.first;
+      shift = existingToEdit.shift;
+    } else if (existingShifts.length == 2) {
+      // If two shifts exist, edit the first one by default
+      existingToEdit = existingList.first;
+      shift = existingToEdit.shift;
+    } else if (existingShifts.length == 1) {
+      // If one shift exists, edit it
+      existingToEdit = existingList.first;
+      shift = existingToEdit.shift;
+    } else {
+      // No existing shifts, suggest AM
+      shift = 'AM';
     }
   }
 
@@ -525,13 +538,20 @@ Future<void> showAddAvailabilityDialog({
     return DateFormat('hh:mm a').format(dt);
   }
 
+  // ✅ FIX: Initialize controllers with existing data if available
   final fromCtrl = TextEditingController(
-    text: existingFrom != null ? apiToDisplay(existingFrom) : "12:00 PM",
+    text:
+        existingToEdit != null
+            ? apiToDisplay(existingToEdit.fromtime)
+            : "12:00 PM",
   );
   final toCtrl = TextEditingController(
-    text: existingTo != null ? apiToDisplay(existingTo) : "12:00 PM",
+    text:
+        existingToEdit != null
+            ? apiToDisplay(existingToEdit.totime)
+            : "12:00 PM",
   );
-  final notesCtrl = TextEditingController(text: existing?.notes ?? "");
+  final notesCtrl = TextEditingController(text: existingToEdit?.notes ?? "");
 
   Future<void> pickDate(bool isStart) async {
     final picked = await showDatePicker(
@@ -616,7 +636,7 @@ Future<void> showAddAvailabilityDialog({
             padding: const EdgeInsets.all(18),
             child: StatefulBuilder(
               builder: (ctx, setState) {
-                final isEditing = existing != null;
+                final isEditing = existingToEdit != null;
 
                 return SingleChildScrollView(
                   child: Column(
@@ -642,26 +662,6 @@ Future<void> showAddAvailabilityDialog({
                         ],
                       ),
                       const SizedBox(height: 10),
-
-                      DropdownButtonFormField<int?>(
-                        initialValue: organiz,
-                        decoration: deco("Organization (Optional)"),
-                        items: [
-                          const DropdownMenuItem<int?>(
-                            value: null,
-                            child: Text("All / Not specified"),
-                          ),
-                          ...organizations.map(
-                            (o) => DropdownMenuItem<int?>(
-                              value: o.id,
-                              child: Text(o.name),
-                            ),
-                          ),
-                        ],
-                        onChanged: (v) => setState(() => organiz = v),
-                      ),
-                      const SizedBox(height: 12),
-
                       Row(
                         children: [
                           Expanded(
@@ -690,31 +690,47 @@ Future<void> showAddAvailabilityDialog({
                         ],
                       ),
                       const SizedBox(height: 12),
-
-                      DropdownButtonFormField<AvShift>(
-                        initialValue: shift,
+                      DropdownButtonFormField<String>(
+                        value: shift,
                         decoration: deco("Shift"),
                         items: const [
+                          DropdownMenuItem(value: 'AM', child: Text("AM")),
+                          DropdownMenuItem(value: 'PM', child: Text("PM")),
                           DropdownMenuItem(
-                            value: AvShift.am,
-                            child: Text("AM"),
-                          ),
-                          DropdownMenuItem(
-                            value: AvShift.pm,
-                            child: Text("PM"),
-                          ),
-                          DropdownMenuItem(
-                            value: AvShift.night,
+                            value: 'NIGHT',
                             child: Text("NIGHT"),
                           ),
                         ],
                         onChanged: (v) {
                           if (v == null) return;
-                          setState(() => shift = v);
+                          setState(() {
+                            shift = v;
+                            // ✅ FIX: Update controllers when shift changes
+                            if (existingList != null &&
+                                existingList.isNotEmpty) {
+                              AvailabilityEntity? existing;
+                              try {
+                                existing = existingList.firstWhere(
+                                  (e) => e.shift == v,
+                                );
+                                // Update the reference to the entity being edited
+                                existingToEdit = existing;
+                                // Update all controllers with the existing data
+                                fromCtrl.text = apiToDisplay(existing.fromtime);
+                                toCtrl.text = apiToDisplay(existing.totime);
+                                notesCtrl.text = existing.notes ?? "";
+                              } catch (_) {
+                                // No existing entry for this shift, reset to defaults
+                                existingToEdit = null;
+                                fromCtrl.text = "12:00 PM";
+                                toCtrl.text = "12:00 PM";
+                                notesCtrl.text = "";
+                              }
+                            }
+                          });
                         },
                       ),
                       const SizedBox(height: 12),
-
                       Row(
                         children: [
                           Expanded(
@@ -749,14 +765,12 @@ Future<void> showAddAvailabilityDialog({
                         ],
                       ),
                       const SizedBox(height: 12),
-
                       TextFormField(
                         controller: notesCtrl,
                         maxLines: 3,
-                        decoration: deco("Notes"),
+                        decoration: deco("Notes (Optional)"),
                       ),
                       const SizedBox(height: 18),
-
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -806,41 +820,30 @@ Future<void> showAddAvailabilityDialog({
                               );
 
                               while (!d.isAfter(last)) {
-                                String? amFrom,
-                                    amTo,
-                                    pmFrom,
-                                    pmTo,
-                                    n8From,
-                                    n8To;
-
-                                if (shift == AvShift.am) {
-                                  amFrom = fromApi;
-                                  amTo = toApi;
-                                } else if (shift == AvShift.pm) {
-                                  pmFrom = fromApi;
-                                  pmTo = toApi;
-                                } else {
-                                  n8From = fromApi;
-                                  n8To = toApi;
-                                }
-
                                 final entity = AvailabilityEntity(
                                   date: d,
-                                  organiz: organiz,
-                                  amFrom: amFrom,
-                                  amTo: amTo,
-                                  pmFrom: pmFrom,
-                                  pmTo: pmTo,
-                                  n8From: n8From,
-                                  n8To: n8To,
+                                  shift: shift,
+                                  fromtime: fromApi,
+                                  totime: toApi,
                                   notes:
                                       notesCtrl.text.trim().isEmpty
                                           ? null
                                           : notesCtrl.text.trim(),
                                 );
 
+                                // ✅ FIX: Check if we're actually editing an existing entity for this specific shift
+                                final isEditingThisShift =
+                                    existingList != null &&
+                                    existingList.any(
+                                      (e) =>
+                                          e.date.year == d.year &&
+                                          e.date.month == d.month &&
+                                          e.date.day == d.day &&
+                                          e.shift == shift,
+                                    );
+
                                 context.read<AvailabilityBloc>().add(
-                                  existing != null
+                                  isEditingThisShift
                                       ? EditAvailabilityForDate(entity)
                                       : SaveAvailabilityForDate(entity),
                                 );

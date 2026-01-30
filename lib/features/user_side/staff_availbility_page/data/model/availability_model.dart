@@ -3,14 +3,10 @@ import 'package:ezaal/features/user_side/staff_availbility_page/domain/entity/av
 class AvailabilityModel extends AvailabilityEntity {
   const AvailabilityModel({
     required super.date,
-    super.amFrom,
-    super.amTo,
-    super.pmFrom,
-    super.pmTo,
-    super.n8From,
-    super.n8To,
-    super.notes, // ✅
-    super.organiz,
+    required super.shift,
+    super.fromtime,
+    super.totime,
+    super.notes,
   });
 
   static DateTime _parseDate(String raw) {
@@ -20,34 +16,26 @@ class AvailabilityModel extends AvailabilityEntity {
 
   factory AvailabilityModel.fromJson(Map<String, dynamic> json) {
     return AvailabilityModel(
-      date: _parseDate((json['dte'] ?? '').toString()),
-      amFrom: json['amfrom']?.toString(),
-      amTo: json['amto']?.toString(),
-      pmFrom: json['pmfrom']?.toString(),
-      pmTo: json['pmto']?.toString(),
-      n8From: json['n8from']?.toString(),
-      n8To: json['n8to']?.toString(),
-      notes: json['notes']?.toString(), // ✅
-      organiz: int.tryParse((json['organiz'] ?? '').toString()),
+      date: _parseDate((json['dateof'] ?? '').toString()),
+      shift: json['shift']?.toString() ?? 'AM',
+      fromtime: json['fromtime']?.toString(),
+      totime: json['totime']?.toString(),
+      notes: json['notes']?.toString(),
     );
   }
 
   Map<String, dynamic> toJson() {
-    final dte =
+    final dateof =
         "${date.year.toString().padLeft(4, '0')}-"
         "${date.month.toString().padLeft(2, '0')}-"
         "${date.day.toString().padLeft(2, '0')}";
 
     return {
-      "dte": dte,
-      "organiz": organiz,
-      "amfrom": amFrom,
-      "amto": amTo,
-      "pmfrom": pmFrom,
-      "pmto": pmTo,
-      "n8from": n8From,
-      "n8to": n8To,
-      "notes": notes, // ✅
+      "dateof": dateof,
+      "shift": shift,
+      "fromtime": fromtime,
+      "totime": totime,
+      "notes": notes,
     };
   }
 }

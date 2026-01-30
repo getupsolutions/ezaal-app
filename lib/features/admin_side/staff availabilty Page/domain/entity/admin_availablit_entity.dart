@@ -1,31 +1,24 @@
+// Replace your AdminAvailablitEntity with this:
+
 class AdminAvailablitEntity {
   final int id;
-  final int userid; // staff id
-  final String dte; // yyyy-MM-dd
-  final int? organiz;
+  final int staffid; // Changed from userid to match DB
+  final String dateof; // Changed from dte to match DB
+  final String shift; // Added: 'AM', 'PM', or 'NIGHT'
 
-  final String? amfrom;
-  final String? amto;
-  final String? pmfrom;
-  final String? pmto;
-  final String? n8from;
-  final String? n8to;
-
+  final String? fromtime; // Changed from amfrom/pmfrom/n8from
+  final String? totime; // Changed from amto/pmto/n8to
   final String? notes;
 
   const AdminAvailablitEntity({
     required this.id,
-    required this.userid,
-    required this.dte,
-    this.organiz,
-    this.amfrom,
-    this.amto,
-    this.pmfrom,
-    this.pmto,
-    this.n8from,
-    this.n8to,
+    required this.staffid,
+    required this.dateof,
+    required this.shift,
+    this.fromtime,
+    this.totime,
     this.notes,
   });
 
-  DateTime get date => DateTime.tryParse(dte) ?? DateTime(1970, 1, 1);
+  DateTime get date => DateTime.tryParse(dateof) ?? DateTime(1970, 1, 1);
 }

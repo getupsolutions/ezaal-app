@@ -58,7 +58,7 @@ import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/usecase/cloc
 import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/usecase/clock_out_usecase.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/attendance_bloc.dart';
 import 'package:ezaal/features/user_side/staff_availbility_page/data/dataSource/availbility_datasource.dart';
-import 'package:ezaal/features/user_side/staff_availbility_page/data/repoImpl/availbility_repositoryimpl.dart';
+import 'package:ezaal/features/user_side/staff_availbility_page/data/repoimpl/availbility_repositoryimpl.dart';
 import 'package:ezaal/features/user_side/staff_availbility_page/domain/repo/availability_repository.dart';
 import 'package:ezaal/features/user_side/staff_availbility_page/domain/usecase/availbility_usecase.dart';
 import 'package:ezaal/features/user_side/staff_availbility_page/presentation/bloc/availbility_bloc.dart';

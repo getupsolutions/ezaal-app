@@ -27,7 +27,7 @@ class AvailabilityBloc extends Bloc<AvailabilityEvent, AvailabilityState> {
   ) async {
     emit(state.copyWith(loading: true, error: null, success: null));
     try {
-      final list = await getUseCase(e.startDate, e.endDate, organiz: e.organiz);
+      final list = await getUseCase(e.startDate, e.endDate);
       emit(state.copyWith(loading: false, items: list));
     } catch (err) {
       emit(state.copyWith(loading: false, error: err.toString()));
@@ -66,7 +66,7 @@ class AvailabilityBloc extends Bloc<AvailabilityEvent, AvailabilityState> {
   ) async {
     emit(state.copyWith(loading: true, error: null, success: null));
     try {
-      await deleteUseCase(e.date, organiz: e.organiz);
+      await deleteUseCase(e.date, e.shift);
       emit(state.copyWith(loading: false, success: "Availability removed"));
     } catch (err) {
       emit(state.copyWith(loading: false, error: err.toString()));

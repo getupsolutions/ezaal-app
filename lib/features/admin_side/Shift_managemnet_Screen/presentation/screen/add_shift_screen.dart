@@ -21,8 +21,7 @@ class AddEditShiftScreen extends StatefulWidget {
 
   // ✅ extra inputs from Availability page
   final String? initialStaffName;
-  final AdminAvailablitEntity? initialAvailability;
-
+  final List<AdminAvailablitEntity>? initialAvailability;
   const AddEditShiftScreen({
     Key? key,
     this.existingShift,
@@ -86,18 +85,14 @@ class _AddEditShiftScreenState extends State<AddEditShiftScreen> {
       _selectedDepartmentId = widget.initialDepartmentId;
     }
 
-    final av = widget.initialAvailability;
-    if (av != null) {
-      // Pick first available slot
-      if ((av.amfrom ?? "").isNotEmpty && (av.amto ?? "").isNotEmpty) {
-        startTimeController.text = (av.amfrom ?? "").substring(0, 5);
-        endTimeController.text = (av.amto ?? "").substring(0, 5);
-      } else if ((av.pmfrom ?? "").isNotEmpty && (av.pmto ?? "").isNotEmpty) {
-        startTimeController.text = (av.pmfrom ?? "").substring(0, 5);
-        endTimeController.text = (av.pmto ?? "").substring(0, 5);
-      } else if ((av.n8from ?? "").isNotEmpty && (av.n8to ?? "").isNotEmpty) {
-        startTimeController.text = (av.n8from ?? "").substring(0, 5);
-        endTimeController.text = (av.n8to ?? "").substring(0, 5);
+    // ✅ NEW: Handle list of availabilities
+    final availabilities = widget.initialAvailability;
+    if (availabilities != null && availabilities.isNotEmpty) {
+      // Use the first availability entry to prefill times
+      final firstAvail = availabilities.first;
+      if (firstAvail.fromtime != null && firstAvail.totime != null) {
+        startTimeController.text = firstAvail.fromtime!.substring(0, 5);
+        endTimeController.text = firstAvail.totime!.substring(0, 5);
       }
     }
 
@@ -405,10 +400,12 @@ class _AddEditShiftScreenState extends State<AddEditShiftScreen> {
                         Text(
                           "Date: ${DateFormat('dd/MM/yyyy').format(selectedDate)}",
                         ),
-                        if (widget.initialAvailability != null)
+                        // ✅ CORRECT
+                        if (widget.initialAvailability != null &&
+                            widget.initialAvailability!.isNotEmpty)
                           Text(
-                            "Availability: ${AvailabilityUtils.summaryLine(context, widget.initialAvailability!)}",
-                            maxLines: 3,
+                            "Availability: ${AvailabilityUtils.summaryLineMultiple(context, widget.initialAvailability!)}",
+                            maxLines: 5,
                             overflow: TextOverflow.ellipsis,
                           ),
                       ],
@@ -877,26 +874,43 @@ class AvailabilityUtils {
   }
 
   static String summaryLine(BuildContext context, AdminAvailablitEntity a) {
-    final parts = <String>[];
-
     String fmt(String? s) {
       final t = _parseTimeOfDay(s);
       return t == null ? "" : t.format(context);
     }
 
-    if ((a.amfrom ?? "").isNotEmpty && (a.amto ?? "").isNotEmpty) {
-      parts.add("AM: ${fmt(a.amfrom)} - ${fmt(a.amto)}");
-    }
-    if ((a.pmfrom ?? "").isNotEmpty && (a.pmto ?? "").isNotEmpty) {
-      parts.add("PM: ${fmt(a.pmfrom)} - ${fmt(a.pmto)}");
-    }
-    if ((a.n8from ?? "").isNotEmpty && (a.n8to ?? "").isNotEmpty) {
-      parts.add("N8: ${fmt(a.n8from)} - ${fmt(a.n8to)}");
+    final from = fmt(a.fromtime);
+    final to = fmt(a.totime);
+
+    String timeStr = '';
+    if (from.isNotEmpty && to.isNotEmpty) {
+      timeStr = '$from - $to';
     }
 
-    final base = parts.isEmpty ? "Availability saved" : parts.join("  •  ");
+    final base = '${a.shift}${timeStr.isNotEmpty ? ': $timeStr' : ''}';
+
     final note = (a.notes ?? "").trim();
     if (note.isNotEmpty) return "$base\nNotes: $note";
     return base;
+  }
+
+  // ✅ NEW: Handle multiple shifts
+  static String summaryLineMultiple(
+    BuildContext context,
+    List<AdminAvailablitEntity> availabilities,
+  ) {
+    if (availabilities.isEmpty) return "No availability";
+    if (availabilities.length == 1) {
+      return summaryLine(context, availabilities.first);
+    }
+
+    // Sort by shift order: AM, PM, NIGHT
+    final sorted = [...availabilities]..sort((a, b) {
+      final shiftOrder = {'AM': 0, 'PM': 1, 'NIGHT': 2};
+      return (shiftOrder[a.shift] ?? 3).compareTo(shiftOrder[b.shift] ?? 3);
+    });
+
+    final parts = sorted.map((a) => summaryLine(context, a)).toList();
+    return parts.join('\n');
   }
 }

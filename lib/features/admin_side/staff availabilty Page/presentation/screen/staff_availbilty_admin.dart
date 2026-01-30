@@ -68,7 +68,7 @@ class _StaffAvailbiltyAdminPageState extends State<StaffAvailbiltyAdminPage> {
     DateTime date, {
     required StaffDto staff,
     int? orgId,
-    AdminAvailablitEntity? availability,
+    List<AdminAvailablitEntity>? availabilities, // Changed from single to list
   }) async {
     final ok = await Navigator.push<bool>(
       context,
@@ -79,7 +79,7 @@ class _StaffAvailbiltyAdminPageState extends State<StaffAvailbiltyAdminPage> {
               initialOrgId: orgId,
               initialStaffId: staff.id,
               initialStaffName: staff.name,
-              initialAvailability: availability,
+              initialAvailability: availabilities, // Pass list
             ),
       ),
     );
@@ -102,26 +102,27 @@ class _StaffAvailbiltyAdminPageState extends State<StaffAvailbiltyAdminPage> {
   }) {
     final key = AvailabilityUtils.ymd(day);
     for (final e in items) {
-      if (e.dte != key) continue;
-      if (e.userid != staffId) continue;
-      if (_orgMatches(e.organiz, orgFilter)) return true;
+      if (e.dateof != key) continue;
+      if (e.staffid != staffId) continue;
+      // Note: orgFilter check removed since it's not in the current schema
+      return true;
     }
     return false;
   }
 
-  AdminAvailablitEntity? _availabilityFor({
+  /// Update _availabilityFor to return a list of shifts for the day
+  List<AdminAvailablitEntity> _availabilitiesFor({
     required List<AdminAvailablitEntity> items,
     required int staffId,
     required DateTime day,
     required int? orgFilter,
   }) {
     final key = AvailabilityUtils.ymd(day);
-    for (final e in items) {
-      if (e.dte != key) continue;
-      if (e.userid != staffId) continue;
-      if (_orgMatches(e.organiz, orgFilter)) return e;
-    }
-    return null;
+    return items.where((e) {
+      if (e.dateof != key) return false;
+      if (e.staffid != staffId) return false;
+      return true;
+    }).toList();
   }
 
   Future<void> _openFilterDialog({
@@ -360,24 +361,21 @@ class _StaffAvailbiltyAdminPageState extends State<StaffAvailbiltyAdminPage> {
                               orgFilter: _orgId,
                               orgs: orgs,
                               staff: filteredStaff,
-                              getAvailability:
-                                  (staffId) => _availabilityFor(
+                              getAvailabilities:
+                                  (staffId) => _availabilitiesFor(
+                                    // Changed method name
                                     items: items,
                                     staffId: staffId,
                                     day: _selectedDay,
                                     orgFilter: _orgId,
                                   ),
                               onAddShiftForStaff:
-                                  (staff) => _openAddShift(
+                                  (staff, availabilities) => _openAddShift(
+                                    // Updated signature
                                     _selectedDay,
                                     staff: staff,
                                     orgId: _orgId,
-                                    availability: _availabilityFor(
-                                      items: items,
-                                      staffId: staff.id,
-                                      day: _selectedDay,
-                                      orgFilter: _orgId,
-                                    ),
+                                    availabilities: availabilities, // Pass list
                                   ),
                             );
 

@@ -9,15 +9,11 @@ abstract class AvailabilityEvent extends Equatable {
 class LoadAvailabilityRange extends AvailabilityEvent {
   final String startDate;
   final String endDate;
-  final int? organiz;
-  LoadAvailabilityRange({
-    required this.startDate,
-    required this.endDate,
-    this.organiz,
-  });
+
+  LoadAvailabilityRange({required this.startDate, required this.endDate});
 
   @override
-  List<Object?> get props => [startDate, endDate, organiz];
+  List<Object?> get props => [startDate, endDate];
 }
 
 class SaveAvailabilityForDate extends AvailabilityEvent {
@@ -30,28 +26,36 @@ class SaveAvailabilityForDate extends AvailabilityEvent {
 
 class DeleteAvailabilityForDate extends AvailabilityEvent {
   final DateTime date;
-  final int? organiz;
-  DeleteAvailabilityForDate({required this.date, this.organiz});
+  final String shift; // ✅ Proper field
+
+  DeleteAvailabilityForDate({
+    required this.date,
+    required this.shift, // ✅ Required parameter
+  });
 
   @override
-  List<Object?> get props => [date, organiz];
+  List<Object?> get props => [date, shift]; // ✅ Includes shift in equality
 }
 
 class LoadStaffAvailabilityRange extends AvailabilityEvent {
   final String startDate;
   final String endDate;
   final int staffId;
-  final int? organiz;
 
   LoadStaffAvailabilityRange({
     required this.startDate,
     required this.endDate,
     required this.staffId,
-    this.organiz,
   });
+
+  @override
+  List<Object?> get props => [startDate, endDate, staffId];
 }
 
 class EditAvailabilityForDate extends AvailabilityEvent {
   final AvailabilityEntity entity;
   EditAvailabilityForDate(this.entity);
+
+  @override
+  List<Object?> get props => [entity];
 }

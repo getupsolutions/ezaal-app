@@ -11,7 +11,8 @@ class FilterResult {
 }
 
 class FilterDialog extends StatefulWidget {
-  const FilterDialog({super.key, 
+  const FilterDialog({
+    super.key,
     required this.orgs,
     required this.staff,
     required this.initialOrgId,
@@ -230,7 +231,8 @@ class ChipPill extends StatelessWidget {
 
 /// ---------- Calendar Panel ----------
 class CalendarPanel extends StatelessWidget {
-  const CalendarPanel({super.key, 
+  const CalendarPanel({
+    super.key,
     required this.focusedDay,
     required this.selectedDay,
     required this.loading,
@@ -382,13 +384,16 @@ class CalendarPanel extends StatelessWidget {
 }
 
 /// ---------- List ----------
+// Replace the AvailableStaffList widget in your admin_staff_availbility_widget.dart
+
 class AvailableStaffList extends StatelessWidget {
-  const AvailableStaffList({super.key, 
+  const AvailableStaffList({
+    super.key,
     required this.selectedDay,
     required this.orgFilter,
     required this.orgs,
     required this.staff,
-    required this.getAvailability,
+    required this.getAvailabilities, // Changed from getAvailability
     required this.onAddShiftForStaff,
   });
 
@@ -396,8 +401,13 @@ class AvailableStaffList extends StatelessWidget {
   final int? orgFilter;
   final List<OrganizationDto> orgs;
   final List<StaffDto> staff;
-  final AdminAvailablitEntity? Function(int staffId) getAvailability;
-  final void Function(StaffDto staff) onAddShiftForStaff;
+  final List<AdminAvailablitEntity> Function(int staffId)
+  getAvailabilities; // Changed
+  final void Function(
+    StaffDto staff,
+    List<AdminAvailablitEntity> availabilities,
+  )
+  onAddShiftForStaff; // Updated
 
   String _orgName(int? id) {
     if (id == null) return "All Organizations";
@@ -445,10 +455,10 @@ class AvailableStaffList extends StatelessWidget {
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, i) {
                     final s = staff[i];
-                    final a = getAvailability(s.id);
+                    final availabilities = getAvailabilities(s.id); // Get list
 
                     return InkWell(
-                      onTap: () => onAddShiftForStaff(s),
+                      onTap: () => onAddShiftForStaff(s, availabilities),
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -473,13 +483,14 @@ class AvailableStaffList extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    a == null
+                                    availabilities.isEmpty
                                         ? "Availability saved"
-                                        : AvailabilityUtils.summaryLine(
+                                        : AvailabilityUtils.summaryLineMultiple(
                                           context,
-                                          a,
+                                          availabilities,
                                         ),
-                                    maxLines: 4,
+                                    maxLines:
+                                        6, // Increased to show multiple shifts
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w600,
@@ -534,27 +545,44 @@ class AvailabilityUtils {
     return TimeOfDay(hour: h, minute: m);
   }
 
+  // ✅ NEW: Handle single availability entity with shift
   static String summaryLine(BuildContext context, AdminAvailablitEntity a) {
-    final parts = <String>[];
-
     String fmt(String? s) {
       final t = parseTimeOfDay(s);
       return t == null ? "" : t.format(context);
     }
 
-    if ((a.amfrom ?? "").isNotEmpty && (a.amto ?? "").isNotEmpty) {
-      parts.add("AM: ${fmt(a.amfrom)} - ${fmt(a.amto)}");
-    }
-    if ((a.pmfrom ?? "").isNotEmpty && (a.pmto ?? "").isNotEmpty) {
-      parts.add("PM: ${fmt(a.pmfrom)} - ${fmt(a.pmto)}");
-    }
-    if ((a.n8from ?? "").isNotEmpty && (a.n8to ?? "").isNotEmpty) {
-      parts.add("N8: ${fmt(a.n8from)} - ${fmt(a.n8to)}");
+    final from = fmt(a.fromtime);
+    final to = fmt(a.totime);
+
+    String timeStr = '';
+    if (from.isNotEmpty && to.isNotEmpty) {
+      timeStr = '$from - $to';
     }
 
-    final base = parts.isEmpty ? "Availability saved" : parts.join("  •  ");
+    final base = '${a.shift}${timeStr.isNotEmpty ? ': $timeStr' : ''}';
+
     final note = (a.notes ?? "").trim();
     if (note.isNotEmpty) return "$base\nNotes: $note";
     return base;
+  }
+
+  // ✅ NEW: Handle multiple shifts for one staff member on one date
+  static String summaryLineMultiple(
+    BuildContext context,
+    List<AdminAvailablitEntity> availabilities,
+  ) {
+    if (availabilities.isEmpty) return "No availability";
+    if (availabilities.length == 1)
+      return summaryLine(context, availabilities.first);
+
+    // Sort by shift order: AM, PM, NIGHT
+    final sorted = [...availabilities]..sort((a, b) {
+      final shiftOrder = {'AM': 0, 'PM': 1, 'NIGHT': 2};
+      return (shiftOrder[a.shift] ?? 3).compareTo(shiftOrder[b.shift] ?? 3);
+    });
+
+    final parts = sorted.map((a) => summaryLine(context, a)).toList();
+    return parts.join('\n');
   }
 }

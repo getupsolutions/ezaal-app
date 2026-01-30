@@ -2,10 +2,6 @@ import 'dart:async';
 
 import 'package:ezaal/core/constant/constant.dart';
 import 'package:ezaal/core/widgets/custom_appbar.dart';
-import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/data/Model/shift_master_model.dart';
-import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_bloc.dart';
-import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_state.dart';
-import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shiftevent.dart';
 import 'package:ezaal/features/user_side/staff_availbility_page/domain/entity/availability_entity.dart';
 import 'package:ezaal/features/user_side/staff_availbility_page/presentation/bloc/availbility_bloc.dart';
 import 'package:ezaal/features/user_side/staff_availbility_page/presentation/bloc/availbility_event.dart';
@@ -15,8 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class StaffAvailbilityPage extends StatefulWidget {
-  const StaffAvailbilityPage({super.key, this.selectedOrgId});
-  final int? selectedOrgId;
+  const StaffAvailbilityPage({super.key});
 
   @override
   State<StaffAvailbilityPage> createState() => _StaffAvailbilityPageState();
@@ -29,15 +24,10 @@ class _StaffAvailbilityPageState extends State<StaffAvailbilityPage> {
   DateTime? _lastSuccessAt;
   Timer? _reloadDebounce;
 
-  int? _orgId;
-
   @override
   void initState() {
     super.initState();
-    _orgId = widget.selectedOrgId;
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AdminShiftBloc>().add(LoadShiftMastersEvent());
       _loadMonth();
     });
   }
@@ -56,7 +46,6 @@ class _StaffAvailbilityPageState extends State<StaffAvailbilityPage> {
       LoadAvailabilityRange(
         startDate: AvailabilityUtils.ymd(start),
         endDate: AvailabilityUtils.ymd(end),
-        organiz: _orgId,
       ),
     );
   }
@@ -66,16 +55,40 @@ class _StaffAvailbilityPageState extends State<StaffAvailbilityPage> {
     _reloadDebounce = Timer(const Duration(milliseconds: 350), _loadMonth);
   }
 
-  AvailabilityEntity? _findForDate(
+  List<AvailabilityEntity> _findForDate(
     List<AvailabilityEntity> items,
     DateTime day,
   ) {
     final key = AvailabilityUtils.ymd(day);
-    for (final e in items) {
-      if (AvailabilityUtils.ymd(e.date) == key && e.organiz == _orgId) return e;
-      if (_orgId == null && AvailabilityUtils.ymd(e.date) == key) return e;
-    }
-    return null;
+    return items.where((e) => AvailabilityUtils.ymd(e.date) == key).toList();
+  }
+
+  Future<bool> _showDeleteConfirmation(
+    BuildContext context,
+    AvailabilityEntity entity,
+  ) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Delete Availability'),
+            content: Text(
+              'Are you sure you want to delete ${entity.shift} shift on ${AvailabilityUtils.fmtDate(entity.date)}?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+    );
+    return result ?? false;
   }
 
   @override
@@ -131,274 +144,194 @@ class _StaffAvailbilityPageState extends State<StaffAvailbilityPage> {
             constraints: BoxConstraints(maxWidth: maxW),
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // BlocBuilder<AdminShiftBloc, AdminShiftState>(
-                  //   builder: (context, mState) {
-                  //     final orgs =
-                  //         (mState is ShiftMastersLoaded)
-                  //             ? mState.masters.organizations
-                  //             : <OrganizationDto>[];
+              child: BlocBuilder<AvailabilityBloc, AvailabilityState>(
+                builder: (context, state) {
+                  final items = state.items;
+                  final selectedEntities =
+                      _selectedDay == null
+                          ? <AvailabilityEntity>[]
+                          : _findForDate(items, _selectedDay!);
 
-                  //     return Card(
-                  //       elevation: 1,
-                  //       shape: RoundedRectangleBorder(
-                  //         borderRadius: BorderRadius.circular(14),
-                  //       ),
-                  //       child: Padding(
-                  //         padding: const EdgeInsets.all(12),
-                  //         child: Row(
-                  //           children: [
-                  //             const Icon(Icons.business, size: 18),
-                  //             const SizedBox(width: 10),
-                  //             Expanded(
-                  //               child: DropdownButtonFormField<int?>(
-                  //                 value: _orgId,
-                  //                 decoration: const InputDecoration(
-                  //                   labelText: "Organization (Optional Filter)",
-                  //                   border: OutlineInputBorder(),
-                  //                   isDense: true,
-                  //                 ),
-                  //                 items: [
-                  //                   const DropdownMenuItem<int?>(
-                  //                     value: null,
-                  //                     child: Text("All Organizations"),
-                  //                   ),
-                  //                   ...orgs.map(
-                  //                     (o) => DropdownMenuItem<int?>(
-                  //                       value: o.id,
-                  //                       child: Text(o.name),
-                  //                     ),
-                  //                   ),
-                  //                 ],
-                  //                 onChanged: (v) {
-                  //                   setState(() => _orgId = v);
-                  //                   _loadMonth();
-                  //                 },
-                  //               ),
-                  //             ),
-                  //           ],
-                  //         ),
-                  //       ),
-                  //     );
-                  //   },
-                  // ),
-                  const SizedBox(height: 12),
+                  // ✅ Desktop: side-by-side
+                  if (isDesktop) {
+                    return Row(
+                      children: [
+                        Expanded(
+                          flex: 6,
+                          child: AvailabilityCalendarCard(
+                            focusedDay: _focusedDay,
+                            selectedDay: _selectedDay,
+                            loading: state.loading,
+                            hasAvailability:
+                                (day) => _findForDate(items, day).isNotEmpty,
+                            onDaySelected: (day, focused) async {
+                              setState(() {
+                                _selectedDay = day;
+                                _focusedDay = focused;
+                              });
 
-                  // ✅ Main responsive area
-                  Expanded(
-                    child: BlocBuilder<AvailabilityBloc, AvailabilityState>(
-                      builder: (context, state) {
-                        final items = state.items;
-                        final selectedEntity =
-                            _selectedDay == null
-                                ? null
-                                : _findForDate(items, _selectedDay!);
+                              final existing = _findForDate(items, day);
 
-                        // ✅ Desktop: side-by-side
-                        if (isDesktop) {
-                          return Row(
-                            children: [
-                              Expanded(
-                                flex: 6,
-                                child: AvailabilityCalendarCard(
-                                  focusedDay: _focusedDay,
-                                  selectedDay: _selectedDay,
-                                  loading: state.loading,
-                                  hasAvailability:
-                                      (day) => _findForDate(items, day) != null,
-                                  onDaySelected: (day, focused) async {
-                                    setState(() {
-                                      _selectedDay = day;
-                                      _focusedDay = focused;
-                                    });
+                              await showAddAvailabilityDialog(
+                                context: context,
+                                initialDate: day,
+                                existingList: existing,
+                              );
+                            },
+                            onPageChanged: (focused) {
+                              setState(() => _focusedDay = focused);
+                              _loadMonth();
+                            },
+                            bottomPanel: AvailabilityBottomPanel(
+                              selectedDay: _selectedDay,
+                              entities: selectedEntities,
+                              onRemove: (e) async {
+                                final confirmed = await _showDeleteConfirmation(
+                                  context,
+                                  e,
+                                );
+                                if (confirmed && context.mounted) {
+                                  context.read<AvailabilityBloc>().add(
+                                    DeleteAvailabilityForDate(
+                                      date: e.date,
+                                      shift: e.shift,
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 5,
+                          child: AvailabilityListCard(
+                            items: items,
+                            onEdit: (e) async {
+                              setState(() {
+                                _selectedDay = e.date;
+                                _focusedDay = e.date;
+                              });
 
-                                    final existing = _findForDate(items, day);
+                              final existing = _findForDate(items, e.date);
 
-                                    final mState =
-                                        context.read<AdminShiftBloc>().state;
-                                    final orgs =
-                                        (mState is ShiftMastersLoaded)
-                                            ? mState.masters.organizations
-                                            : <OrganizationDto>[];
-
-                                    await showAddAvailabilityDialog(
-                                      context: context,
-                                      organizations: orgs,
-                                      initialOrganiz: _orgId,
-                                      initialDate: day,
-                                      existing: existing,
-                                    );
-                                  },
-                                  onPageChanged: (focused) {
-                                    setState(() => _focusedDay = focused);
-                                    _loadMonth();
-                                  },
-                                  bottomPanel: AvailabilityBottomPanel(
-                                    selectedDay: _selectedDay,
-                                    entity: selectedEntity,
-                                    selectedOrgId: _orgId,
-                                    onRemove: (e) {
-                                      context.read<AvailabilityBloc>().add(
-                                        DeleteAvailabilityForDate(
-                                          date: e.date,
-                                          organiz: e.organiz,
-                                        ),
-                                      );
-                                    },
+                              await showAddAvailabilityDialog(
+                                context: context,
+                                initialDate: e.date,
+                                existingList: existing,
+                              );
+                            },
+                            onRemove: (e) async {
+                              final confirmed = await _showDeleteConfirmation(
+                                context,
+                                e,
+                              );
+                              if (confirmed && context.mounted) {
+                                context.read<AvailabilityBloc>().add(
+                                  DeleteAvailabilityForDate(
+                                    date: e.date,
+                                    shift: e.shift,
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                flex: 5,
-                                child: AvailabilityListCard(
-                                  items:
-                                      items.where((e) {
-                                        if (_orgId == null) return true;
-                                        return e.organiz == _orgId;
-                                      }).toList(),
-                                  onEdit: (e) async {
-                                    setState(() {
-                                      _selectedDay = e.date;
-                                      _focusedDay = e.date;
-                                    });
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    );
+                  }
 
-                                    final mState =
-                                        context.read<AdminShiftBloc>().state;
-                                    final orgs =
-                                        (mState is ShiftMastersLoaded)
-                                            ? mState.masters.organizations
-                                            : <OrganizationDto>[];
+                  // ✅ Mobile/Tablet: vertical split
+                  return LayoutBuilder(
+                    builder: (context, c) {
+                      final isShort = c.maxHeight < 650;
 
-                                    await showAddAvailabilityDialog(
-                                      context: context,
-                                      organizations: orgs,
-                                      initialOrganiz: e.organiz,
-                                      initialDate: e.date,
-                                      existing: e,
-                                    );
-                                  },
-                                  onRemove: (e) {
+                      return Column(
+                        children: [
+                          Expanded(
+                            flex: isShort ? 6 : 7,
+                            child: AvailabilityCalendarCard(
+                              focusedDay: _focusedDay,
+                              selectedDay: _selectedDay,
+                              loading: state.loading,
+                              hasAvailability:
+                                  (day) => _findForDate(items, day).isNotEmpty,
+                              onDaySelected: (day, focused) async {
+                                setState(() {
+                                  _selectedDay = day;
+                                  _focusedDay = focused;
+                                });
+
+                                final existing = _findForDate(items, day);
+
+                                await showAddAvailabilityDialog(
+                                  context: context,
+                                  initialDate: day,
+                                  existingList: existing,
+                                );
+                              },
+                              onPageChanged: (focused) {
+                                setState(() => _focusedDay = focused);
+                                _loadMonth();
+                              },
+                              bottomPanel: AvailabilityBottomPanel(
+                                selectedDay: _selectedDay,
+                                entities: selectedEntities,
+                                onRemove: (e) async {
+                                  final confirmed =
+                                      await _showDeleteConfirmation(context, e);
+                                  if (confirmed && context.mounted) {
                                     context.read<AvailabilityBloc>().add(
                                       DeleteAvailabilityForDate(
                                         date: e.date,
-                                        organiz: e.organiz,
+                                        shift: e.shift,
                                       ),
                                     );
-                                  },
-                                ),
+                                  }
+                                },
                               ),
-                            ],
-                          );
-                        }
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            flex: isShort ? 4 : 5,
+                            child: AvailabilityListCard(
+                              items: items,
+                              onEdit: (e) async {
+                                setState(() {
+                                  _selectedDay = e.date;
+                                  _focusedDay = e.date;
+                                });
 
-                        // ✅ Mobile/Tablet: vertical split
-                        return LayoutBuilder(
-                          builder: (context, c) {
-                            final isShort = c.maxHeight < 650;
+                                final existing = _findForDate(items, e.date);
 
-                            return Column(
-                              children: [
-                                Expanded(
-                                  flex: isShort ? 6 : 7,
-                                  child: AvailabilityCalendarCard(
-                                    focusedDay: _focusedDay,
-                                    selectedDay: _selectedDay,
-                                    loading: state.loading,
-                                    hasAvailability:
-                                        (day) =>
-                                            _findForDate(items, day) != null,
-                                    onDaySelected: (day, focused) async {
-                                      setState(() {
-                                        _selectedDay = day;
-                                        _focusedDay = focused;
-                                      });
-
-                                      final existing = _findForDate(items, day);
-
-                                      final mState =
-                                          context.read<AdminShiftBloc>().state;
-                                      final orgs =
-                                          (mState is ShiftMastersLoaded)
-                                              ? mState.masters.organizations
-                                              : <OrganizationDto>[];
-
-                                      await showAddAvailabilityDialog(
-                                        context: context,
-                                        organizations: orgs,
-                                        initialOrganiz: _orgId,
-                                        initialDate: day,
-                                        existing: existing,
-                                      );
-                                    },
-                                    onPageChanged: (focused) {
-                                      setState(() => _focusedDay = focused);
-                                      _loadMonth();
-                                    },
-                                    bottomPanel: AvailabilityBottomPanel(
-                                      selectedDay: _selectedDay,
-                                      entity: selectedEntity,
-                                      selectedOrgId: _orgId,
-                                      onRemove: (e) {
-                                        context.read<AvailabilityBloc>().add(
-                                          DeleteAvailabilityForDate(
-                                            date: e.date,
-                                            organiz: e.organiz,
-                                          ),
-                                        );
-                                      },
+                                await showAddAvailabilityDialog(
+                                  context: context,
+                                  initialDate: e.date,
+                                  existingList: existing,
+                                );
+                              },
+                              onRemove: (e) async {
+                                final confirmed = await _showDeleteConfirmation(
+                                  context,
+                                  e,
+                                );
+                                if (confirmed && context.mounted) {
+                                  context.read<AvailabilityBloc>().add(
+                                    DeleteAvailabilityForDate(
+                                      date: e.date,
+                                      shift: e.shift,
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Expanded(
-                                  flex: isShort ? 4 : 5,
-                                  child: AvailabilityListCard(
-                                    items:
-                                        items.where((e) {
-                                          if (_orgId == null) return true;
-                                          return e.organiz == _orgId;
-                                        }).toList(),
-                                    onEdit: (e) async {
-                                      setState(() {
-                                        _selectedDay = e.date;
-                                        _focusedDay = e.date;
-                                      });
-
-                                      final mState =
-                                          context.read<AdminShiftBloc>().state;
-                                      final orgs =
-                                          (mState is ShiftMastersLoaded)
-                                              ? mState.masters.organizations
-                                              : <OrganizationDto>[];
-
-                                      await showAddAvailabilityDialog(
-                                        context: context,
-                                        organizations: orgs,
-                                        initialOrganiz: e.organiz,
-                                        initialDate: e.date,
-                                        existing: e,
-                                      );
-                                    },
-                                    onRemove: (e) {
-                                      context.read<AvailabilityBloc>().add(
-                                        DeleteAvailabilityForDate(
-                                          date: e.date,
-                                          organiz: e.organiz,
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ),
