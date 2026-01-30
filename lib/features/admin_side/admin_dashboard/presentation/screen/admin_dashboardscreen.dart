@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:ezaal/core/constant/constant.dart';
+import 'package:ezaal/core/services/notification_polling.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/screen/shift_managmentscreen.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_bloc.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_event.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_state.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/presentation/widget/admin_drawer.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/presentation/widget/dashboard_tile.dart';
@@ -24,6 +26,8 @@ class AdminDashboardPage extends StatefulWidget {
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final NotificationPollingService _pollingService =
+      NotificationPollingService();
 
   String greeting = "";
   late Timer _timer;
@@ -43,11 +47,19 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         });
       }
     });
+    _pollingService.onPoll = () {
+      if (mounted) {
+        context.read<NotificationBloc>().add(FetchUnreadCount());
+      }
+    };
+
+    _pollingService.startPolling(intervalSeconds: 30);
   }
 
   @override
   void dispose() {
     _timer.cancel();
+    _pollingService.stopPolling();
     super.dispose();
   }
 
@@ -68,7 +80,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
-  @override
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -136,55 +147,56 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
         ),
         actions: [
-          // BlocBuilder<NotificationBloc, NotificationState>(
-          //   builder: (context, notificationState) {
-          //     int unreadCount = 0;
+          BlocBuilder<NotificationBloc, NotificationState>(
+            builder: (context, notificationState) {
+              int unreadCount = 0;
 
-          //     if (notificationState is NotificationLoaded) {
-          //       unreadCount = notificationState.unreadCount;
-          //     }
+              if (notificationState is NotificationLoaded) {
+                unreadCount =
+                    int.tryParse(notificationState.unreadCount.toString()) ?? 0;
+              }
 
-          //     return Padding(
-          //       padding: const EdgeInsets.only(right: 12.0),
-          //       child: Stack(
-          //         children: [
-          //           IconButton(
-          //             icon: Icon(Icons.notifications, color: kWhite, size: 26),
-          //             onPressed: () {
-          //               NavigatorHelper.push(NotificationPage());
-          //             },
-          //           ),
-          //           if (unreadCount > 0)
-          //             Positioned(
-          //               right: 8,
-          //               top: 8,
-          //               child: Container(
-          //                 padding: EdgeInsets.all(4),
-          //                 decoration: BoxDecoration(
-          //                   color: Colors.red,
-          //                   shape: BoxShape.circle,
-          //                 ),
-          //                 constraints: BoxConstraints(
-          //                   minWidth: 18,
-          //                   minHeight: 18,
-          //                 ),
-          //                 child: Center(
-          //                   child: Text(
-          //                     unreadCount > 99 ? '99+' : unreadCount.toString(),
-          //                     style: TextStyle(
-          //                       color: Colors.white,
-          //                       fontSize: 10,
-          //                       fontWeight: FontWeight.bold,
-          //                     ),
-          //                   ),
-          //                 ),
-          //               ),
-          //             ),
-          //         ],
-          //       ),
-          //     );
-          //   },
-          // ),
+              return Padding(
+                padding: const EdgeInsets.only(right: 12.0),
+                child: Stack(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.notifications, color: kWhite, size: 26),
+                      onPressed: () {
+                        NavigatorHelper.push(NotificationPage());
+                      },
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          child: Center(
+                            child: Text(
+                              unreadCount > 99 ? '99+' : unreadCount.toString(),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, state) {
               String userName = "User";

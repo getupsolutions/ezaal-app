@@ -6,9 +6,12 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:ezaal/core/constant/constant.dart';
+import 'package:ezaal/core/services/notification_polling.dart';
+import 'package:ezaal/core/services/notification_service.dart';
 import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/bloc/Admin%20Shift/admin_shift_bloc.dart';
+import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_event.dart';
 import 'package:ezaal/features/admin_side/staff%20availabilty%20Page/presentation/bloc/admin_avail_bloc.dart';
 import 'package:ezaal/features/user_side/available_shift_page/presentation/bloc/shift_bloc.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/ManagerInfo/managerinfo_bloc.dart';
@@ -30,6 +33,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await LocalNotificationService().initialize();
+
   await di.init(); // Initialize DI
 
   String? token = await TokenStorage.getAccessToken();
@@ -47,6 +52,8 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  late NotificationPollingService _pollingService;
+
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isOnline = false;
 
@@ -63,6 +70,14 @@ class _MyAppState extends State<MyApp> {
     ) {
       _handleConnectivityChange(results);
     });
+  }
+
+  Future<void> _startPolling() async {
+    try {
+      await _pollingService.startPolling(intervalSeconds: 30);
+    } catch (e) {
+      debugPrint('❌ Error starting polling: $e');
+    }
   }
 
   Future<void> _checkInitialConnectivity() async {
@@ -147,6 +162,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
+    _pollingService.startPolling();
     _connectivitySubscription?.cancel();
     super.dispose();
   }
@@ -164,7 +180,10 @@ class _MyAppState extends State<MyApp> {
         BlocProvider(create: (context) => di.sl<ManagerInfoBloc>()),
         BlocProvider(create: (context) => di.sl<TimesheetBloc>()),
         BlocProvider(create: (context) => di.sl<DashboardBloc>()),
-        BlocProvider(create: (context) => di.sl<NotificationBloc>()),
+        BlocProvider(
+          create:
+              (context) => di.sl<NotificationBloc>()..add(FetchNotifications()),
+        ),
         BlocProvider(create: (context) => di.sl<AdminShiftBloc>()),
         BlocProvider(create: (context) => di.sl<AvailabilityBloc>()),
         BlocProvider(create: (context) => di.sl<AdminAvailabilityBloc>()),

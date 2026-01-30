@@ -54,6 +54,9 @@ dependencies:
   url_launcher: ^6.3.2
   connectivity_plus: ^7.0.0
   timeago: ^3.7.1
+  flutter_local_notifications: ^20.0.0
+  audioplayers: ^6.5.1
+  permission_handler: ^12.0.1
 
 dev_dependencies:
   flutter_test:
@@ -92,6 +95,7 @@ flutter:
     - assets/svg/my_roster.svg
     - assets/svg/available_shift_user_icon.svg
     - assets/svg/event-svgrepo-com.svg
+    - assets/sounds/
 
 flutter_icons:
   android: true
