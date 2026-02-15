@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 
 class LocalNotificationService {
   static final LocalNotificationService _instance =
@@ -17,62 +20,119 @@ class LocalNotificationService {
   bool _initialized = false;
 
   Future<void> _requestPermission() async {
-    if (await Permission.notification.isDenied) {
-      await Permission.notification.request();
+    if (kIsWeb) return;
+    if (!(Platform.isAndroid || Platform.isIOS)) return;
+
+    if (Platform.isAndroid) {
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestNotificationsPermission();
     }
   }
 
   Future<void> initialize() async {
     if (_initialized) return;
 
-    // Request notification permission for Android 13+
     await _requestPermission();
 
-    // Initialize local notifications
-    const AndroidInitializationSettings androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
 
-    const DarwinInitializationSettings iosSettings =
-        DarwinInitializationSettings(
-          requestAlertPermission: true,
-          requestBadgePermission: true,
-          requestSoundPermission: true,
-        );
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
 
-    const InitializationSettings initSettings = InitializationSettings(
+    const initSettings = InitializationSettings(
       android: androidSettings,
       iOS: iosSettings,
     );
 
     await _localNotifications.initialize(
-      settings: initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
+      settings: initSettings,
     );
 
-    // Create notification channel for Android
-    await _createNotificationChannel();
+    await _createNotificationChannels();
 
     _initialized = true;
-    print('Local Notification Service initialized');
   }
 
-  Future<void> _createNotificationChannel() async {
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'ehc_notifications',
-      'EHC Notifications',
-      description: 'Notifications for shift updates and important alerts',
-      importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
-      enableLights: true,
-    );
-    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+  Future<void> _createNotificationChannels() async {
+    if (kIsWeb || !(Platform.isAndroid)) return;
+
+    final android =
         _localNotifications
             .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin
             >();
 
-    await androidImplementation?.createNotificationChannel(channel);
+    if (android == null) return;
+
+    // One channel per sound/type (Android limitation)
+    final channels = <AndroidNotificationChannel>[
+      // USER SIDE
+      AndroidNotificationChannel(
+        'ehc_shift_approved',
+        'Shift Approved',
+        description: 'Shift approved notifications',
+        importance: Importance.high,
+        playSound: true,
+        sound: const RawResourceAndroidNotificationSound('approved'),
+      ),
+      AndroidNotificationChannel(
+        'ehc_shift_rejected',
+        'Shift Rejected',
+        description: 'Shift rejected notifications',
+        importance: Importance.high,
+        playSound: true,
+        sound: const RawResourceAndroidNotificationSound('rejected'),
+      ),
+      AndroidNotificationChannel(
+        'ehc_new_shift',
+        'New Shift',
+        description: 'New shift notifications',
+        importance: Importance.high,
+        playSound: true,
+        sound: const RawResourceAndroidNotificationSound('new_shift'),
+      ),
+
+      // ADMIN/STAFF SIDE (from your logs)
+      AndroidNotificationChannel(
+        'ehc_staff_signout',
+        'Staff Signout',
+        description: 'Staff signout notifications',
+        importance: Importance.high,
+        playSound: true,
+        sound: const RawResourceAndroidNotificationSound('notification'),
+      ),
+      AndroidNotificationChannel(
+        'ehc_staff_accept',
+        'Staff Shift Claim',
+        description: 'Staff shift claim notifications',
+        importance: Importance.high,
+        playSound: true,
+        sound: const RawResourceAndroidNotificationSound('notification'),
+      ),
+
+      // DEFAULT (use a NEW ID to avoid Android cache issues)
+      AndroidNotificationChannel(
+        'ehc_default_v2',
+        'General',
+        description: 'General notifications',
+        importance: Importance.high,
+        playSound: true,
+        sound: const RawResourceAndroidNotificationSound('notification'),
+      ),
+    ];
+
+    for (final c in channels) {
+      await android.createNotificationChannel(c);
+    }
   }
 
   Future<void> showNotification({
@@ -82,14 +142,8 @@ class LocalNotificationService {
     required String type,
     Map<String, dynamic>? data,
   }) async {
-    if (!_initialized) {
-      await initialize();
-    }
+    if (!_initialized) await initialize();
 
-    // Play notification sound
-    await _playNotificationSound(type);
-
-    // Show local notification
     await _showLocalNotification(
       id: id,
       title: title,
@@ -129,8 +183,10 @@ class LocalNotificationService {
     required String type,
     Map<String, dynamic>? data,
   }) async {
-    AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'ehc_notifications',
+    final channelId = _androidChannelForType(type);
+
+    final androidDetails = AndroidNotificationDetails(
+      channelId,
       'EHC Notifications',
       channelDescription:
           'Notifications for shift updates and important alerts',
@@ -139,29 +195,29 @@ class LocalNotificationService {
       playSound: true,
       enableVibration: true,
       enableLights: true,
-      color: _getColorForType(type),
-      icon: '@mipmap/ic_launcher',
-      largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
       styleInformation: BigTextStyleInformation(body, contentTitle: title),
+      icon: '@mipmap/ic_launcher',
     );
 
-    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+    final iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
+      sound: _iosSoundForType(type),
     );
 
-    NotificationDetails details = NotificationDetails(
+    final details = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
 
     await _localNotifications.show(
       id: id,
-      title: title,
       body: body,
       notificationDetails: details,
-      payload: data?.toString(),
+      title: title,
+
+      payload: data == null ? null : jsonEncode(data),
     );
   }
 
@@ -195,5 +251,44 @@ class LocalNotificationService {
 
   void dispose() {
     _audioPlayer.dispose();
+  }
+}
+
+String _androidChannelForType(String type) {
+  switch (type) {
+    // user types
+    case 'shift-approved':
+      return 'ehc_shift_approved';
+    case 'shift-rejected':
+      return 'ehc_shift_rejected';
+    case 'new-shift':
+      return 'ehc_new_shift';
+
+    // staff/admin types (from your API logs)
+    case 'staff-signout':
+      return 'ehc_staff_signout';
+    case 'staff-acpt-req':
+      return 'ehc_staff_accept';
+
+    default:
+      return 'ehc_default_v2';
+  }
+}
+
+String _iosSoundForType(String type) {
+  switch (type) {
+    case 'shift-approved':
+      return 'approved.caf';
+    case 'shift-rejected':
+      return 'rejected.caf';
+    case 'new-shift':
+      return 'new_shift.caf';
+
+    case 'staff-signout':
+    case 'staff-acpt-req':
+      return 'notification.caf';
+
+    default:
+      return 'notification.caf';
   }
 }

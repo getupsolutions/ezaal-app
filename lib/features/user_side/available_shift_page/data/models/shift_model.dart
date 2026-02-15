@@ -25,15 +25,17 @@ class ShiftModel extends ShiftEntity {
       json['state'] ?? '',
     ].where((part) => part.isNotEmpty).join(', ');
 
-    String formattedDates = '';
-    if (json['date'] != null && json['date'].toString().isNotEmpty) {
-      try {
-        final dateTime = DateTime.parse(json['date']);
-        formattedDates = DateFormat('dd MMM yyyy').format(dateTime);
-      } catch (e) {
-        formattedDates = json['date'].toString();
-      }
-    }
+    final rawDate = json['date']?.toString() ?? '';
+
+    // String formattedDates = '';
+    // if (json['date'] != null && json['date'].toString().isNotEmpty) {
+    //   try {
+    //     final dateTime = DateTime.parse(json['date']);
+    //     formattedDates = DateFormat('dd MMM yyyy').format(dateTime);
+    //   } catch (e) {
+    //     formattedDates = json['date'].toString();
+    //   }
+    // }
 
     final rawStatus = (json['status'] ?? 'un-confirm').toString();
     final adminApprove = (json['adminaprrove'] ?? '').toString();
@@ -49,7 +51,7 @@ class ShiftModel extends ShiftEntity {
 
     return ShiftModel(
       id: int.parse(json['id'].toString()),
-      date: formattedDates,
+      date: rawDate,
       time: formattedTime,
       agencyName: json['organization_name'] ?? 'Unknown',
       duration: json['break'] != null ? '${json['break']} mins break' : '',

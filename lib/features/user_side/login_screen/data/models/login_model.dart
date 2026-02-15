@@ -1,6 +1,7 @@
 import 'package:ezaal/features/user_side/login_screen/domain/Entity/user_entity.dart';
 
 class UserModel extends UserEntity {
+  final int? staffUnreadCount;
   UserModel({
     required super.id,
     required super.name,
@@ -10,6 +11,7 @@ class UserModel extends UserEntity {
     super.staffId,
     super.photoUrl,
     required super.role,
+    this.staffUnreadCount,
   });
 
   // Create UserModel from UserEntity
@@ -37,6 +39,10 @@ class UserModel extends UserEntity {
       staffId: data['staffId'] ?? data['typeId'],
       photoUrl: data['photo'],
       role: data['role'] ?? 'user',
+      staffUnreadCount:
+          json['staff_unread_count'] == null
+              ? null
+              : int.tryParse(json['staff_unread_count'].toString()),
     );
   }
 
@@ -48,7 +54,8 @@ class UserModel extends UserEntity {
         'email': email,
         'staffId': staffId,
         'photo': photoUrl,
-        'role' : role,
+        'role': role,
+        'staff_unread_count': staffUnreadCount,
       },
       'access_token': accessToken,
       'refresh_token': refreshToken,

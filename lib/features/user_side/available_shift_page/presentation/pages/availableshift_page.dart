@@ -30,6 +30,60 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
     context.read<ShiftBloc>().add(FetchShifts());
   }
 
+  String _formatDateWithDay(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr); // ISO → DateTime
+      final dayName = DateFormat('EEEE').format(date);
+      final formattedDate = DateFormat('dd MMM yyyy').format(date);
+
+      return '$dayName, $formattedDate';
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  /// ✅ Parse date strings in multiple formats
+  DateTime? _parseDateString(String dateStr) {
+    if (dateStr.isEmpty) return null;
+
+    try {
+      // Try parsing as ISO format first (2026-02-05 or 2026-02-05T00:00:00)
+      if (dateStr.contains('-')) {
+        final parsed = DateTime.tryParse(dateStr);
+        if (parsed != null) return parsed;
+
+        // Try dd-MM-yyyy format
+        final parts = dateStr.split('-');
+        if (parts.length == 3) {
+          final year = int.tryParse(parts[2]);
+          final month = int.tryParse(parts[1]);
+          final day = int.tryParse(parts[0]);
+          if (year != null && month != null && day != null) {
+            return DateTime(year, month, day);
+          }
+        }
+      }
+
+      // Try parsing dd/MM/yyyy format
+      if (dateStr.contains('/')) {
+        final parts = dateStr.split('/');
+        if (parts.length == 3) {
+          final day = int.tryParse(parts[0]);
+          final month = int.tryParse(parts[1]);
+          final year = int.tryParse(parts[2]);
+          if (year != null && month != null && day != null) {
+            return DateTime(year, month, day);
+          }
+        }
+      }
+
+      return null;
+    } catch (e) {
+      print('❌ Error in _parseDateString: $dateStr, Error: $e');
+      return null;
+    }
+  }
+
   void _showFilterDialog(BuildContext context, List<String> organizations) {
     showDialog(
       context: context,
@@ -422,13 +476,13 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
               _buildShiftInfoLine(
                 label: 'Existing Shift',
                 value:
-                    '${existingShift.date} • ${existingShift.time} • ${existingShift.agencyName}',
+                    '${_formatDateWithDay(existingShift.date)} • ${existingShift.time} • ${existingShift.agencyName}',
               ),
               const SizedBox(height: 4),
               _buildShiftInfoLine(
                 label: 'New Shift',
                 value:
-                    '${newShift.date} • ${newShift.time} • ${newShift.agencyName}',
+                    '${_formatDateWithDay(newShift.date)} • ${newShift.time} • ${newShift.agencyName}',
               ),
               const SizedBox(height: 12),
               const Text(
@@ -506,7 +560,7 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
             onTap: () {
               context.read<ShiftBloc>().add(FetchShifts());
             },
-            child:  Padding(
+            child: Padding(
               padding: EdgeInsets.only(right: 16),
               child: Icon(Icons.refresh, color: kWhite),
             ),
@@ -519,7 +573,7 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
                     _showFilterDialog(context, allOrganizations);
                   }
                 },
-                child:  Icon(Icons.filter_list, color: kWhite),
+                child: Icon(Icons.filter_list, color: kWhite),
               ),
               if (selectedOrganization != null)
                 Positioned(
@@ -770,11 +824,12 @@ class _AvailableshiftPageState extends State<AvailableshiftPage> {
                           shift.status.toLowerCase() == 'pending';
                       final bool isAccepted =
                           shift.status.toLowerCase() == 'accepted';
+                      final dateWithDay = _formatDateWithDay(shift.date);
 
                       return Padding(
                         padding: const EdgeInsets.all(10.0),
                         child: ShiftCardWidget(
-                          date: shift.date,
+                          date: dateWithDay,
                           screenHeight: screenHeight,
                           screenWidth: screenWidth,
                           duration: shift.duration,

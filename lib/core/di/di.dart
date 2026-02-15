@@ -26,6 +26,7 @@ import 'package:ezaal/features/user_side/available_shift_page/domain/repository/
 import 'package:ezaal/features/user_side/available_shift_page/domain/usecase/claim_shift_usecase.dart';
 import 'package:ezaal/features/user_side/available_shift_page/domain/usecase/get_availableshift.dart';
 import 'package:ezaal/features/user_side/available_shift_page/presentation/bloc/shift_bloc.dart';
+import 'package:ezaal/features/user_side/clock_in_&_out_page/data/repository/notification_repository_impl.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/data/repository/slot_repository_impl.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/repository/managerinfo_repository.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/repository/slot_repository.dart';
@@ -38,6 +39,9 @@ import 'package:ezaal/features/admin_side/admin_dashboard/data/remote_datasource
 import 'package:ezaal/features/admin_side/admin_dashboard/data/repositoryImpl/notification_repositoryimpl.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/domain/repository/notification_repository.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/domain/usecase/notification_usecase.dart';
+import 'package:ezaal/features/user_side/dashboard/data/remote_datasource/notification_remote_ds.dart';
+import 'package:ezaal/features/user_side/dashboard/domain/repository/notification_repository.dart';
+import 'package:ezaal/features/user_side/dashboard/domain/usecase/staff_noti_usecase.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_bloc.dart';
 import 'package:ezaal/features/user_side/login_screen/data/data_source/auth_remotedatasource.dart';
@@ -67,14 +71,23 @@ import 'package:ezaal/features/user_side/timesheet_page/data/repositoryImpl/time
 import 'package:ezaal/features/user_side/timesheet_page/domain/repository/timesheet_repository.dart';
 import 'package:ezaal/features/user_side/timesheet_page/domain/usecase/timesheet_usecase.dart';
 import 'package:ezaal/features/user_side/timesheet_page/presentation/bloc/timesheet_bloc.dart';
+import 'package:ezaal/features/user_side/dashboard/presentation/bloc/staff_noti_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:http/http.dart' as http;
 
 final sl = GetIt.instance;
 
 Future<void> init() async {
+  sl.registerLazySingleton<http.Client>(() => http.Client());
+
   final token = await TokenStorage.getAccessToken() ?? '';
   //Bloc
   sl.registerFactory(() => SplashBloc());
+  sl.registerFactory(
+    () =>
+        StaffNotificationBloc(getUnreadCountUC: sl(), getNotificationsUC: sl()),
+  );
+
   sl.registerFactory(() => AuthBloc(sl()));
   sl.registerFactory(() => ShiftBloc(sl(), sl()));
   sl.registerFactory(
@@ -154,6 +167,8 @@ Future<void> init() async {
   sl.registerLazySingleton(() => EditAvailabilityUseCase(sl()));
   sl.registerLazySingleton(() => SendStaffConfirmedMailUseCase(sl()));
   sl.registerLazySingleton(() => SendStaffAvailableShiftMailUseCase(sl()));
+  sl.registerLazySingleton(() => GetStaffUnreadCountUC(sl()));
+  sl.registerLazySingleton(() => GetStaffNotificationsUC(sl()));
 
   //! Repository
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl()));
@@ -182,6 +197,9 @@ Future<void> init() async {
   sl.registerLazySingleton<AvailabilityAdminRepo>(
     () => AvailabilityAdminRepoImpl(sl()),
   );
+  sl.registerLazySingleton<StaffNotificationRepository>(
+    () => StaffNotificationRepositoryImpl(sl()),
+  );
 
   //! Data sources
   sl.registerLazySingleton<AuthRemoteDataSource>(() => AuthRemoteDataSource());
@@ -197,6 +215,9 @@ Future<void> init() async {
   );
   sl.registerLazySingleton<TimesheetRemoteDataSource>(
     () => TimesheetRemoteDataSource(),
+  );
+  sl.registerLazySingleton<StaffNotificationRemoteDatasource>(
+    () => StaffNotificationRemoteDatasource(sl<http.Client>()),
   );
 
   //Offline Sync Service

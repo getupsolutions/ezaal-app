@@ -3,11 +3,11 @@ import 'package:ezaal/core/widgets/custom_drawer.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/dashboard_state.dart';
-import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_bloc.dart';
-import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_event.dart';
-import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_state.dart';
+import 'package:ezaal/features/user_side/dashboard/presentation/bloc/staff_noti_bloc.dart';
+import 'package:ezaal/features/user_side/dashboard/presentation/bloc/staff_noti_event.dart';
+import 'package:ezaal/features/user_side/dashboard/presentation/bloc/staff_noti_state.dart';
+import 'package:ezaal/features/user_side/dashboard/presentation/screen/staff_noti_page.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/widget/dashboard_widgets.dart';
-import 'package:ezaal/features/admin_side/admin_dashboard/presentation/widget/notification_uipage.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_bloc.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_state.dart';
 import 'package:flutter/material.dart';
@@ -27,7 +27,7 @@ class _DashboardViewState extends State<DashboardView> {
   void initState() {
     super.initState();
     // Fetch unread notification count
-    context.read<NotificationBloc>().add(FetchUnreadCount());
+    context.read<StaffNotificationBloc>().add(FetchStaffUnreadCount());
   }
 
   @override
@@ -92,6 +92,61 @@ class _DashboardViewState extends State<DashboardView> {
                   ],
                 ),
         actions: [
+          BlocBuilder<StaffNotificationBloc, StaffNotificationState>(
+            builder: (context, nState) {
+              final count = nState.staffUnreadCount;
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(50),
+                  onTap: () {
+                    context.read<StaffNotificationBloc>().add(
+                      FetchStaffNotifications(),
+                    );
+                    NavigatorHelper.push(const NotificationUIPage());
+                  },
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: Icon(
+                          Icons.notifications_none_rounded,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      if (count > 0)
+                        Positioned(
+                          right: 6,
+                          top: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              count > 99 ? '99+' : '$count',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+
           // Notification Bell with Badge
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, state) {

@@ -286,7 +286,7 @@ class CalendarPanel extends StatelessWidget {
                         selectedDayPredicate: (d) => isSameDay(selectedDay, d),
                         onDaySelected: onDaySelected,
                         onPageChanged: onPageChanged,
-
+                        startingDayOfWeek: StartingDayOfWeek.monday,
                         sixWeekMonthsEnforced: false,
                         shouldFillViewport: true,
 

@@ -28,7 +28,7 @@ class ShiftViewPage extends StatelessWidget {
     }
   }
 
-String _formatDate(String raw) {
+  String _formatDate(String raw) {
     try {
       final d = DateTime.parse(raw);
       // Friday Jan 2026
@@ -37,7 +37,6 @@ String _formatDate(String raw) {
       return raw;
     }
   }
-
 
   String _formatShortDateTime(String? raw) {
     final dt = _parseDateTime(raw);
@@ -131,11 +130,13 @@ String _formatDate(String raw) {
         }
       },
       builder: (context, state) {
-        // 👇 use updated shift from bloc if available, else fallback
         final currentShift = _getShiftFromState(state) ?? shift;
 
         final theme = Theme.of(context);
         final totalHoursWorked = _calculateTotalWorked(currentShift);
+
+        final dept = (currentShift.departmentName ?? '').trim();
+        final hasDept = dept.isNotEmpty;
 
         return Scaffold(
           backgroundColor: Colors.grey[200],
@@ -152,10 +153,7 @@ String _formatDate(String raw) {
                   return base;
                 }
 
-                final maxContentWidth =
-                    screenWidth > 900
-                        ? 900.0
-                        : screenWidth; // center on big screens
+                final maxContentWidth = screenWidth > 900 ? 900.0 : screenWidth;
 
                 return Center(
                   child: SingleChildScrollView(
@@ -201,9 +199,11 @@ String _formatDate(String raw) {
                               ),
                               const SizedBox(height: 8),
 
-                              // Header date / org / designation
+                              // Header date / org / position
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                     child: Column(
@@ -243,61 +243,117 @@ String _formatDate(String raw) {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        currentShift.organizationName,
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                              fontSize: fontScale(
-                                                theme
-                                                        .textTheme
-                                                        .bodyMedium
-                                                        ?.fontSize ??
-                                                    14,
+
+                                  // ✅ aligned organization + position (no Expanded inside InfoRow issues)
+                                  Flexible(
+                                    fit: FlexFit.loose,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          currentShift.organizationName,
+                                          textAlign: TextAlign.right,
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                                fontSize: fontScale(
+                                                  theme
+                                                          .textTheme
+                                                          .bodyMedium
+                                                          ?.fontSize ??
+                                                      14,
+                                                ),
+                                                fontWeight: FontWeight.w600,
                                               ),
-                                              fontWeight: FontWeight.w600,
+                                        ),
+
+                                        // ✅ Position aligned under org name
+                                        if (currentShift
+                                            .staffTypeDesignation
+                                            .isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 6,
                                             ),
-                                      ),
-                                      Text(
-                                        currentShift.departmentName ?? '',
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                              fontSize: fontScale(
-                                                theme
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Icon(
+                                                  Icons.work_outline,
+                                                  size: 18,
+                                                  color: Colors.grey[700],
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  "Position: ",
+                                                  style: theme
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        fontSize: fontScale(
+                                                          theme
+                                                                  .textTheme
+                                                                  .bodySmall
+                                                                  ?.fontSize ??
+                                                              13,
+                                                        ),
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                ),
+                                                Flexible(
+                                                  fit: FlexFit.loose,
+                                                  child: Text(
+                                                    currentShift
+                                                        .staffTypeDesignation,
+                                                    textAlign: TextAlign.right,
+                                                    style: theme
                                                         .textTheme
                                                         .bodySmall
-                                                        ?.fontSize ??
-                                                    12,
-                                              ),
-                                              color: Colors.grey[600],
+                                                        ?.copyWith(
+                                                          fontSize: fontScale(
+                                                            theme
+                                                                    .textTheme
+                                                                    .bodySmall
+                                                                    ?.fontSize ??
+                                                                13,
+                                                          ),
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color: const Color(
+                                                            0xFF1CA6C0,
+                                                          ),
+                                                        ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                      ),
-                                    ],
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 16),
 
-                              // Info rows
+                              // ✅ Break row
                               InfoRow(
                                 icon: Icons.timer_outlined,
                                 label: 'Break',
                                 value: '${currentShift.breakMinutes} Minutes',
                               ),
-                              const SizedBox(height: 4),
 
-                              // ✅ NEW: Display Staff Type Designation
-                              if (currentShift.staffTypeDesignation.isNotEmpty)
-                                InfoRow(
-                                  icon: Icons.work_outline,
-                                  label: 'Position',
-                                  value: currentShift.staffTypeDesignation,
-                                  highlight: true,
-                                ),
-                              if (currentShift.staffTypeDesignation.isNotEmpty)
-                                const SizedBox(height: 4),
+                              // ✅ Department heading + aligned value under Break
+                              const SizedBox(height: 4),
+                              InfoRow(
+                                icon: Icons.person_outline,
+                                label: 'Department',
+                                value: currentShift.departmentName ?? '',
+                              ),
+                              const SizedBox(height: 4),
 
                               InfoRow(
                                 icon: Icons.person_outline,
@@ -309,23 +365,21 @@ String _formatDate(String raw) {
                                 highlight: true,
                               ),
                               const SizedBox(height: 4),
+
                               InfoRow(
                                 icon: Icons.location_on_outlined,
                                 label: 'Location',
                                 value: currentShift.location,
                               ),
                               const SizedBox(height: 4),
-                              // ✅ NEW: Clock-in Location
 
-                              const SizedBox(height: 4),
-                   InfoRow(
+                              InfoRow(
                                 icon: Icons.check_circle_outline,
                                 label: 'Accepted date',
                                 value:
                                     '${_formatShortDateTime(currentShift.staffRequestDate)} ${currentShift.staffRequestName ?? ''}',
                                 highlight: true,
                               ),
-
                               const SizedBox(height: 4),
 
                               InfoRow(
@@ -340,7 +394,6 @@ String _formatDate(String raw) {
                                         : currentShift.clockinLocationDisplay,
                                 highlight: true,
                               ),
-
 
                               const SizedBox(height: 12),
 
@@ -379,7 +432,6 @@ String _formatDate(String raw) {
 
                               const SizedBox(height: 16),
 
-                              // Clock in/out section (table style)
                               _buildClockTable(
                                 context,
                                 fontScale: fontScale,
@@ -388,7 +440,6 @@ String _formatDate(String raw) {
 
                               const SizedBox(height: 16),
 
-                              // Authorised person details
                               Text(
                                 'Authorised Person details:',
                                 style: theme.textTheme.titleMedium?.copyWith(
@@ -429,7 +480,6 @@ String _formatDate(String raw) {
 
                               const SizedBox(height: 16),
 
-                              // Bottom buttons
                               Row(
                                 children: [
                                   Expanded(
@@ -468,7 +518,6 @@ String _formatDate(String raw) {
                                       onPressed: () async {
                                         final shiftBloc =
                                             context.read<AdminShiftBloc>();
-                                        // backend uses 'confirmed'
                                         final isCurrentlyApproved =
                                             currentShift.status == 'confirmed';
 
@@ -496,6 +545,7 @@ String _formatDate(String raw) {
                                                   ),
                                             );
                                         if (!confirmed) return;
+
                                         shiftBloc.add(
                                           ToggleShiftApprovalEvent(
                                             shiftId: currentShift.id,
@@ -565,7 +615,6 @@ String _formatDate(String raw) {
         children: [
           _dialogLine("Date", _formatDate(s.date)),
           _dialogLine("Time", safe(s.time)),
-          // ✅ NEW: Show staff type designation in confirmation dialog
           if (s.staffTypeDesignation.isNotEmpty)
             _dialogLine("Position", s.staffTypeDesignation),
           _dialogLine(
@@ -621,7 +670,6 @@ String _formatDate(String raw) {
       ),
       child: Column(
         children: [
-          // Header row
           Container(
             decoration: BoxDecoration(
               color: Colors.grey[100],
@@ -633,7 +681,7 @@ String _formatDate(String raw) {
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
             child: Row(
               children: [
-                const SizedBox(width: 80), // left empty cell
+                const SizedBox(width: 80),
                 Expanded(
                   child: Text(
                     'Clock in Details',
@@ -661,8 +709,6 @@ String _formatDate(String raw) {
               ],
             ),
           ),
-
-          // Time row
           ClockRow(
             title: 'Time',
             clockIn: _formatOnlyTime(currentShift.signIn),
@@ -670,8 +716,6 @@ String _formatDate(String raw) {
             clockInType: _mapClockType(currentShift.signInType),
             clockOutType: _mapClockType(currentShift.signOutType),
           ),
-
-          // Notes row
           ClockRow(
             title: 'Notes',
             clockIn: currentShift.signInReason ?? '-',

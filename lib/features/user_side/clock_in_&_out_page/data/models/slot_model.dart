@@ -35,19 +35,44 @@ class SlotModel extends SlotEntity {
       shiftDate = json['shift_start_date'].toString();
     }
 
+    String departmentName = '';
+
+    if (json['department_name'] != null &&
+        json['department_name'].toString().isNotEmpty) {
+      // If backend returns 'department_name' from JOIN
+      departmentName = json['department_name'].toString();
+    } else if (json['department'] != null) {
+      // Check if it's already a name (string) or ID (number)
+      final deptValue = json['department'];
+      if (deptValue is String && !_isNumeric(deptValue)) {
+        // It's already a name
+        departmentName = deptValue;
+      } else if (deptValue is int ||
+          (deptValue is String && _isNumeric(deptValue))) {
+        // It's an ID - this shouldn't happen if backend is properly joined
+        // But we'll handle it gracefully
+        departmentName = 'Department #$deptValue';
+      }
+    }
+    final orgName = (json['org_name'] ?? '').toString();
     return SlotModel(
-      id: json['id'].toString(), // This is the organiz_requests ID
+      id: json['id'].toString(),
       time: timeRange,
       role: json['designation'] ?? '',
-      location: json['department']?.toString() ?? '',
+      location: orgName.isNotEmpty ? orgName : 'No Organization', // ✅ FIXED
       address: address,
       shiftDate: shiftDate,
-      inTimeStatus: json['inTimeStatus'] ?? false, // From PHP backend
-      outTimeStatus: json['outTimeStatus'] ?? false, // From PHP backend
+      inTimeStatus: json['inTimeStatus'] ?? false,
+      outTimeStatus: json['outTimeStatus'] ?? false,
       managerStatus: json['managerStatus'] ?? false,
       userClockinLocation: json['user_clockin_location'],
     );
   }
+  static bool _isNumeric(String? str) {
+    if (str == null || str.isEmpty) return false;
+    return double.tryParse(str) != null;
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

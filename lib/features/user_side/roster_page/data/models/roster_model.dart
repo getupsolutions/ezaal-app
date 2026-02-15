@@ -6,7 +6,6 @@ class RosterModel extends RosterEntity {
     required super.date,
     required super.day,
     required super.time,
-
     required super.location,
     required super.organizationName,
     required super.notes,
@@ -35,7 +34,10 @@ class RosterModel extends RosterEntity {
     final dateTime = DateTime.tryParse(date);
     final day = dateTime != null ? _getDayName(dateTime.weekday) : '';
 
-    final staffName = (json['staffreqname'] ?? '').toString();
+    // ✅ NEW: Get staff name from user table join
+    // The API should join with user table and return firstname + lastname
+    final staffName = _getStaffName(json);
+
     final breakMinutes = (json['break'] ?? '').toString();
 
     return RosterModel(
@@ -46,9 +48,36 @@ class RosterModel extends RosterEntity {
       organizationName: json['organization_name'] ?? 'Unknown',
       notes: json['notes'] ?? '',
       designation: json['designation'] ?? '',
-      staffName: staffName.isEmpty ? '-' : staffName,
+      staffName: staffName,
       breakMinutes: breakMinutes.isEmpty ? '0' : breakMinutes,
     );
+  }
+
+  /// ✅ NEW: Extract staff name from joined user data
+  static String _getStaffName(Map<String, dynamic> json) {
+    // Option 1: If API returns firstname and lastname from user table
+    final firstName = (json['firstname'] ?? '').toString().trim();
+    final lastName = (json['lastname'] ?? '').toString().trim();
+
+    if (firstName.isNotEmpty || lastName.isNotEmpty) {
+      return '$firstName $lastName'.trim();
+    }
+
+    // Option 2: If API returns full_name or staff_name
+    final fullName =
+        (json['full_name'] ?? json['staff_name'] ?? '').toString().trim();
+    if (fullName.isNotEmpty) {
+      return fullName;
+    }
+
+    // Option 3: Fallback to staffreqname if user data not available
+    final staffReqName = (json['staffreqname'] ?? '').toString().trim();
+    if (staffReqName.isNotEmpty) {
+      return staffReqName;
+    }
+
+    // Default fallback
+    return 'Not Assigned';
   }
 
   static String _getDayName(int weekday) {

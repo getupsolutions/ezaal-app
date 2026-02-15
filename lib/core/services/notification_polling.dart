@@ -1,6 +1,6 @@
-// notification_polling.dart
 import 'dart:async';
 import 'dart:convert';
+import 'package:ezaal/core/services/app_badge_count.dart';
 import 'package:ezaal/core/services/notification_service.dart';
 import 'package:ezaal/core/token_manager.dart';
 import 'package:flutter/material.dart';
@@ -16,12 +16,16 @@ class NotificationPollingService {
   VoidCallback? onPoll;
   Timer? _pollingTimer;
   bool _isPolling = false;
+
   final LocalNotificationService _notificationService =
       LocalNotificationService();
   Set<int> _displayedNotificationIds = {};
 
   final String _apiEndpoint =
-      'https://app.ezaalhealthcare.com.au/api/v1/get-notifications'; // Make sure this is correct
+      'https://app.ezaalhealthcare.com.au/api/v1/public/get-notifications';
+
+  static const _kUnreadCount =
+      'unread_count'; // ✅ same key used for UI if needed
 
   Future<void> startPolling({int intervalSeconds = 30}) async {
     if (_isPolling) return;
@@ -48,7 +52,14 @@ class NotificationPollingService {
   Future<void> _checkForNewNotifications() async {
     try {
       final token = await TokenStorage.getAccessToken();
-      if (token == null) return;
+
+      if (token == null) {
+        await AppBadgeService.clearBadge();
+        await _saveUnreadCount(0);
+        return;
+      }
+
+      debugPrint('✅ Calling: $_apiEndpoint');
 
       final response = await http.get(
         Uri.parse(_apiEndpoint),
@@ -58,6 +69,9 @@ class NotificationPollingService {
         },
       );
 
+      debugPrint('✅ Status: ${response.statusCode}');
+      debugPrint('✅ Body: ${response.body}');
+
       if (response.statusCode != 200) {
         debugPrint('❌ Notification API error: ${response.statusCode}');
         return;
@@ -66,11 +80,16 @@ class NotificationPollingService {
       final decoded = json.decode(response.body);
       final List notifications = decoded['data'] ?? [];
 
+      int unreadCount = 0;
+
       for (final notification in notifications) {
         final int notificationId =
             int.tryParse(notification['id'].toString()) ?? 0;
+
         final int rd = int.tryParse(notification['rd'].toString()) ?? 1;
         final bool isUnread = rd == 0;
+
+        if (isUnread) unreadCount++;
 
         if (isUnread && !_displayedNotificationIds.contains(notificationId)) {
           await _notificationService.showNotification(
@@ -85,6 +104,9 @@ class NotificationPollingService {
           await _saveDisplayedNotifications();
         }
       }
+
+      await _saveUnreadCount(unreadCount);
+      await AppBadgeService.setUnreadCount(unreadCount);
     } catch (e) {
       debugPrint('❌ Error checking notifications: $e');
     }
@@ -100,6 +122,12 @@ class NotificationPollingService {
         return 'New Shift Available';
       case 'shift-claim-pending':
         return 'Shift Claim Pending';
+
+      case 'staff-signout':
+        return 'Staff Signout';
+      case 'staff-acpt-req':
+        return 'Shift Claimed';
+
       default:
         return 'Notification';
     }
@@ -119,6 +147,16 @@ class NotificationPollingService {
       'displayed_notification_ids',
       _displayedNotificationIds.map((e) => e.toString()).toList(),
     );
+  }
+
+  Future<void> _saveUnreadCount(int count) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kUnreadCount, count);
+  }
+
+  Future<int> getUnreadCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_kUnreadCount) ?? 0;
   }
 
   void stopPolling() {

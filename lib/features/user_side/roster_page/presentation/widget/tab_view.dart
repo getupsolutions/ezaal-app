@@ -255,6 +255,7 @@ class _RosterTabViewState extends State<RosterTabView>
                             formatButtonVisible: false,
                             titleCentered: true,
                           ),
+                          startingDayOfWeek: StartingDayOfWeek.monday,
                         ),
                       ),
                     ),

@@ -20,6 +20,7 @@ import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/bloc/a
 import 'package:ezaal/features/user_side/clock_in_&_out_page/presentation/widget/queded_operation.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_bloc.dart';
+import 'package:ezaal/features/user_side/dashboard/presentation/bloc/staff_noti_bloc.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_bloc.dart';
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_event.dart';
 import 'package:ezaal/features/user_side/roster_page/presentation/bloc/roster_bloc.dart';
@@ -187,6 +188,7 @@ class _MyAppState extends State<MyApp> {
         BlocProvider(create: (context) => di.sl<AdminShiftBloc>()),
         BlocProvider(create: (context) => di.sl<AvailabilityBloc>()),
         BlocProvider(create: (context) => di.sl<AdminAvailabilityBloc>()),
+        BlocProvider(create: (context) => di.sl<StaffNotificationBloc>()),
       ],
       child: MaterialApp(
         navigatorKey: NavigatorHelper.navigatorKey,
