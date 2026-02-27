@@ -1,11 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:ezaal/core/services/app_badge_count.dart';
+import 'package:ezaal/core/services/background_service.dart';
 import 'package:ezaal/core/services/notification_service.dart';
 import 'package:ezaal/core/token_manager.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:workmanager/workmanager.dart';
+import 'dart:io' show Platform;
 
 class NotificationPollingService {
   static final NotificationPollingService _instance =
@@ -24,9 +29,12 @@ class NotificationPollingService {
   final String _apiEndpoint =
       'https://app.ezaalhealthcare.com.au/api/v1/public/get-notifications';
 
-  static const _kUnreadCount =
-      'unread_count'; // ✅ same key used for UI if needed
+  static const _kUnreadCount = 'unread_count';
 
+  // ── Public API ──────────────────────────────────────────────────────────────
+
+  /// Call once after login. Starts both foreground polling AND registers
+  /// the Workmanager background task.
   Future<void> startPolling({int intervalSeconds = 30}) async {
     if (_isPolling) return;
     _isPolling = true;
@@ -34,6 +42,10 @@ class NotificationPollingService {
     await _loadDisplayedNotifications();
     await _notificationService.initialize();
 
+    // ── Register Workmanager background task ──────────────────────────────
+    await _registerBackgroundTask();
+
+    // ── Foreground polling (while app is open) ────────────────────────────
     await _checkForNewNotifications();
     onPoll?.call();
 
@@ -45,9 +57,61 @@ class NotificationPollingService {
     });
 
     debugPrint(
-      '🔔 Notification polling started (every $intervalSeconds seconds)',
+      '🔔 Polling started (foreground: ${intervalSeconds}s | background: Workmanager)',
     );
   }
+
+  /// Call on logout — stops foreground polling AND cancels background task.
+  Future<void> stopPolling() async {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+    _isPolling = false;
+
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      await Workmanager().cancelByUniqueName(BackgroundTaskNames.periodicPoll);
+    }
+
+    debugPrint('🛑 Notification polling stopped');
+  }
+
+  void clearDisplayedNotifications() {
+    _displayedNotificationIds.clear();
+    _saveDisplayedNotifications();
+  }
+
+  Future<int> getUnreadCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_kUnreadCount) ?? 0;
+  }
+
+  bool get isPolling => _isPolling;
+
+  // ── Background task registration ────────────────────────────────────────────
+
+  Future<void> _registerBackgroundTask() async {
+    if (kIsWeb) return;
+    if (!(Platform.isAndroid || Platform.isIOS)) return;
+
+    await Workmanager().initialize(
+      callbackDispatcher, // top-level function in background_service.dart
+      isInDebugMode: false,
+    );
+
+    // Android supports true periodic tasks (min 15 min enforced by OS)
+    // iOS uses BGAppRefreshTask (requires capability in Xcode)
+    await Workmanager().registerPeriodicTask(
+      BackgroundTaskNames.periodicPoll,
+      BackgroundTaskNames.periodicPoll,
+      frequency: const Duration(minutes: 15),
+      initialDelay: const Duration(seconds: 10),
+      constraints: Constraints(networkType: NetworkType.connected),
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+    );
+
+    debugPrint('✅ Workmanager background task registered (15 min interval)');
+  }
+
+  // ── Foreground polling ──────────────────────────────────────────────────────
 
   Future<void> _checkForNewNotifications() async {
     try {
@@ -59,18 +123,15 @@ class NotificationPollingService {
         return;
       }
 
-      debugPrint('✅ Calling: $_apiEndpoint');
-
-      final response = await http.get(
-        Uri.parse(_apiEndpoint),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      debugPrint('✅ Status: ${response.statusCode}');
-      debugPrint('✅ Body: ${response.body}');
+      final response = await http
+          .get(
+            Uri.parse(_apiEndpoint),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 200) {
         debugPrint('❌ Notification API error: ${response.statusCode}');
@@ -85,7 +146,6 @@ class NotificationPollingService {
       for (final notification in notifications) {
         final int notificationId =
             int.tryParse(notification['id'].toString()) ?? 0;
-
         final int rd = int.tryParse(notification['rd'].toString()) ?? 1;
         final bool isUnread = rd == 0;
 
@@ -97,9 +157,8 @@ class NotificationPollingService {
             title: _getNotificationTitle(notification['type']),
             body: notification['notification'] ?? '',
             type: notification['type'] ?? 'default',
-            data: notification,
+            data: Map<String, dynamic>.from(notification),
           );
-
           _displayedNotificationIds.add(notificationId);
           await _saveDisplayedNotifications();
         }
@@ -112,6 +171,8 @@ class NotificationPollingService {
     }
   }
 
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+
   String _getNotificationTitle(String? type) {
     switch (type) {
       case 'shift-approved':
@@ -122,12 +183,10 @@ class NotificationPollingService {
         return 'New Shift Available';
       case 'shift-claim-pending':
         return 'Shift Claim Pending';
-
       case 'staff-signout':
         return 'Staff Signout';
       case 'staff-acpt-req':
         return 'Shift Claimed';
-
       default:
         return 'Notification';
     }
@@ -153,23 +212,4 @@ class NotificationPollingService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kUnreadCount, count);
   }
-
-  Future<int> getUnreadCount() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_kUnreadCount) ?? 0;
-  }
-
-  void stopPolling() {
-    _pollingTimer?.cancel();
-    _pollingTimer = null;
-    _isPolling = false;
-    debugPrint('🛑 Notification polling stopped');
-  }
-
-  void clearDisplayedNotifications() {
-    _displayedNotificationIds.clear();
-    _saveDisplayedNotifications();
-  }
-
-  bool get isPolling => _isPolling;
 }

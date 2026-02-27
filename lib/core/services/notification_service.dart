@@ -30,6 +30,14 @@ class LocalNotificationService {
           >()
           ?.requestNotificationsPermission();
     }
+    if (Platform.isIOS) {
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+    }
+
   }
 
   Future<void> initialize() async {

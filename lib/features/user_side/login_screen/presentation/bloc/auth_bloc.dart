@@ -1,3 +1,4 @@
+import 'package:ezaal/core/services/fcm_service.dart';
 import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/features/user_side/login_screen/data/models/login_model.dart';
 import 'package:ezaal/features/user_side/login_screen/domain/usecase/login_usecase.dart';
@@ -55,6 +56,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         await TokenStorage.saveTokens(user.accessToken, user.refreshToken);
         final userModel = UserModel.fromEntity(user);
         await TokenStorage.saveUserData(userModel);
+
+        await FCMService().syncTokenToServer(
+          accessToken: user.accessToken,
+          baseUrl: 'https://app.ezaalhealthcare.com.au/api/v1/public',
+        );
 
         emit(AuthSuccess(user));
       } catch (e) {

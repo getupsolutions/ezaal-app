@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:ezaal/core/constant/constant.dart';
+import 'package:ezaal/core/services/fcm_service.dart';
 import 'package:ezaal/core/services/notification_polling.dart';
 import 'package:ezaal/core/services/notification_service.dart';
 import 'package:ezaal/core/token_manager.dart';
@@ -28,18 +29,38 @@ import 'package:ezaal/features/user_side/splash_screen/presentation/bloc/splash_
 import 'package:ezaal/features/user_side/splash_screen/presentation/pages/splash_screen.dart';
 import 'package:ezaal/features/user_side/staff_availbility_page/presentation/bloc/availbility_bloc.dart';
 import 'package:ezaal/features/user_side/timesheet_page/presentation/bloc/timesheet_bloc.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:ezaal/core/di/di.dart' as di;
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ✅ 1. Initialize local notifications FIRST
   await LocalNotificationService().initialize();
 
-  await di.init(); // Initialize DI
+  // ✅ 2. Initialize Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  // ✅ 3. Register the TOP-LEVEL background handler (NOT a static class method)
+  //    This is the most critical fix — the handler must be a top-level function
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // ✅ 4. Initialize FCM service (foreground handling, permissions, channels)
+  await FCMService().init();
+
+  // ✅ 5. Debug: print FCM token
+  final fmtoken = await FirebaseMessaging.instance.getToken();
+  debugPrint('🔥 FCM TOKEN => $fmtoken');
+
+  // ✅ 6. Initialize dependency injection
+  await di.init();
+
+  // ✅ 7. Get stored token and launch app
   String? token = await TokenStorage.getAccessToken();
-
   runApp(MyApp(initialToken: token));
 }
 
@@ -163,7 +184,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
-    _pollingService.startPolling();
+    _pollingService.stopPolling();
     _connectivitySubscription?.cancel();
     super.dispose();
   }

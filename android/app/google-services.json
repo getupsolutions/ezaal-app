@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "600280048239",
+    "project_id": "ehc-hub-81ad2",
+    "storage_bucket": "ehc-hub-81ad2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:600280048239:android:80495c2d6edb97376ce39a",
+        "android_client_info": {
+          "package_name": "com.ezaal.healthcare"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBueMRugL1pM6Hk80Q6k7nUwfmVEAiBu00"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

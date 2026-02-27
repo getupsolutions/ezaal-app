@@ -1,3 +1,7 @@
+import org.gradle.api.tasks.Delete
+import org.gradle.kotlin.dsl.register
+import org.gradle.api.file.Directory
+
 allprojects {
     repositories {
         google()
@@ -5,6 +9,7 @@ allprojects {
     }
 }
 
+// (Optional) Keep your custom build output directory setup
 val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
 rootProject.layout.buildDirectory.value(newBuildDir)
 
