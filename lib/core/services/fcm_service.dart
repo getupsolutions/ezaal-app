@@ -1,21 +1,34 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+typedef OnFCMUserMessage =
+    void Function(String title, String body, String type);
+typedef OnFCMStaffMessage =
+    void Function(String title, String body, String type);
+
 class _Keys {
   static const fcmToken = 'fcm_token';
 }
 
-// ✅ CRITICAL: Must be a TOP-LEVEL function, NOT inside any class
-// This is the most common reason background notifications don't show
+/// ─────────────────────────────────────────────────────────────────────────────
+/// ✅ TOP-LEVEL BACKGROUND HANDLER (MUST be top-level)
+/// ─────────────────────────────────────────────────────────────────────────────
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // ✅ Re-initialize FlutterLocalNotificationsPlugin in background isolate
+  // ✅ Always init Firebase in background isolate
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // If already initialized, ignore.
+  }
+
   final FlutterLocalNotificationsPlugin local =
       FlutterLocalNotificationsPlugin();
 
@@ -24,7 +37,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     iOS: DarwinInitializationSettings(),
   );
 
-  await local.initialize(settings: settings);
+  await local.initialize(
+    settings: settings,
+    onDidReceiveBackgroundNotificationResponse: _backgroundNotificationTapped,
+  );
 
   // ✅ Re-create Android channels in background isolate
   if (!kIsWeb && Platform.isAndroid) {
@@ -33,12 +49,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
             .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin
             >();
-    await _createAndroidChannelsBackground(android);
+    await _createAndroidChannels(android);
   }
 
   final data = message.data;
 
-  // ✅ Prefer notification payload, fallback to data payload
   final title =
       message.notification?.title ??
       data['title']?.toString() ??
@@ -46,10 +61,13 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
   final body = message.notification?.body ?? data['body']?.toString() ?? '';
 
-  // ✅ Read channel_id from data payload sent by your PHP backend
-  final channelId = data['channel_id']?.toString() ?? 'ehc_default_v2';
+  // Prefer explicit channel_id; otherwise derive from "type"
+  final type = data['type']?.toString() ?? '';
+  final channelId =
+      (data['channel_id']?.toString().trim().isNotEmpty == true)
+          ? data['channel_id'].toString()
+          : _channelIdForType(type);
 
-  // ✅ Map channel_id to correct sound
   final soundName = _soundForChannel(channelId);
 
   await local.show(
@@ -61,46 +79,33 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         channelId,
         _channelNameForId(channelId),
         channelDescription: 'Shift and healthcare updates',
-        importance: Importance.max, // ✅ Use max for background
-        priority: Priority.max, // ✅ Use max for background
+        importance: Importance.max,
+        priority: Priority.max,
         playSound: true,
         enableVibration: true,
-        // ✅ Use the correct raw resource sound matching the channel
         sound: RawResourceAndroidNotificationSound(soundName),
       ),
-      iOS: const DarwinNotificationDetails(
+      iOS: DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
+        sound: '$soundName.caf',
       ),
     ),
     payload: jsonEncode(data),
   );
 }
 
-// ✅ Helper: must also be top-level (called from top-level background handler)
-Future<void> _createAndroidChannelsBackground(
+/// ─────────────────────────────────────────────────────────────────────────────
+/// ✅ ANDROID CHANNELS (must be callable from background + foreground)
+/// ─────────────────────────────────────────────────────────────────────────────
+Future<void> _createAndroidChannels(
   AndroidFlutterLocalNotificationsPlugin? android,
 ) async {
   if (android == null) return;
 
   const channels = <AndroidNotificationChannel>[
-    AndroidNotificationChannel(
-      'ehc_default_v2',
-      'General',
-      description: 'General notifications',
-      importance: Importance.max,
-      playSound: true,
-      sound: RawResourceAndroidNotificationSound('notification'),
-    ),
-    AndroidNotificationChannel(
-      'ehc_new_shift',
-      'New Shift',
-      description: 'New shift notifications',
-      importance: Importance.max,
-      playSound: true,
-      sound: RawResourceAndroidNotificationSound('new_shift'),
-    ),
+    // USER SIDE
     AndroidNotificationChannel(
       'ehc_shift_approved',
       'Shift Approved',
@@ -118,6 +123,16 @@ Future<void> _createAndroidChannelsBackground(
       sound: RawResourceAndroidNotificationSound('rejected'),
     ),
     AndroidNotificationChannel(
+      'ehc_new_shift',
+      'New Shift',
+      description: 'New shift notifications',
+      importance: Importance.max,
+      playSound: true,
+      sound: RawResourceAndroidNotificationSound('new_shift'),
+    ),
+
+    // STAFF SIDE
+    AndroidNotificationChannel(
       'ehc_staff_signout',
       'Staff Signout',
       description: 'Staff signout notifications',
@@ -128,7 +143,17 @@ Future<void> _createAndroidChannelsBackground(
     AndroidNotificationChannel(
       'ehc_staff_accept',
       'Staff Shift Claim',
-      description: 'Staff shift claim notifications',
+      description: 'Staff shift claim / requests notifications',
+      importance: Importance.max,
+      playSound: true,
+      sound: RawResourceAndroidNotificationSound('notification'),
+    ),
+
+    // DEFAULT
+    AndroidNotificationChannel(
+      'ehc_default_v2',
+      'General',
+      description: 'General notifications',
       importance: Importance.max,
       playSound: true,
       sound: RawResourceAndroidNotificationSound('notification'),
@@ -140,7 +165,10 @@ Future<void> _createAndroidChannelsBackground(
   }
 }
 
-// ✅ Helper: top-level sound mapping
+/// ─────────────────────────────────────────────────────────────────────────────
+/// ✅ CHANNEL + SOUND HELPERS
+/// ─────────────────────────────────────────────────────────────────────────────
+
 String _soundForChannel(String channelId) {
   switch (channelId) {
     case 'ehc_shift_approved':
@@ -154,7 +182,6 @@ String _soundForChannel(String channelId) {
   }
 }
 
-// ✅ Helper: channel display name
 String _channelNameForId(String channelId) {
   switch (channelId) {
     case 'ehc_shift_approved':
@@ -172,6 +199,37 @@ String _channelNameForId(String channelId) {
   }
 }
 
+String _channelIdForType(String type) {
+  switch (type) {
+    // user side types
+    case 'shift-approved':
+      return 'ehc_shift_approved';
+    case 'shift-rejected':
+      return 'ehc_shift_rejected';
+    case 'new-shift':
+      return 'ehc_new_shift';
+
+    // staff side types (your API/log types)
+    case 'staff-signout':
+      return 'ehc_staff_signout';
+    case 'staff-acpt-req':
+    case 'organiz-add-reqst':
+      return 'ehc_staff_accept';
+
+    default:
+      return 'ehc_default_v2';
+  }
+}
+
+@pragma('vm:entry-point')
+void _backgroundNotificationTapped(NotificationResponse response) {
+  debugPrint('🔔 Background notification tapped: ${response.payload}');
+  // TODO: navigate via global navigator key if needed
+}
+
+/// ─────────────────────────────────────────────────────────────────────────────
+/// ✅ FCMService (Foreground + Tap handling + BLoC routing)
+/// ─────────────────────────────────────────────────────────────────────────────
 class FCMService {
   static final FCMService _instance = FCMService._internal();
   factory FCMService() => _instance;
@@ -183,19 +241,29 @@ class FCMService {
 
   bool _inited = false;
 
-  /// Call once after Firebase.initializeApp()
+  // Hook these from your app after blocs are created
+  OnFCMUserMessage? onUserMessage;
+  OnFCMStaffMessage? onStaffMessage;
+
+  static const _staffTypes = {
+    'staff-signout',
+    'staff-acpt-req',
+    'organiz-add-reqst',
+  };
+
+  static bool isStaffType(String? type) => _staffTypes.contains(type);
+
+  /// Call once after Firebase.initializeApp(), before runApp UI.
   Future<void> init() async {
     if (_inited) return;
 
-    // ✅ Request permissions
     await _messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
-      criticalAlert: true, // ✅ Request critical alerts too
+      criticalAlert: true,
     );
 
-    // ✅ IMPORTANT: Set foreground notification presentation options for iOS
     await _messaging.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,
@@ -216,38 +284,111 @@ class FCMService {
       settings: settings,
       onDidReceiveNotificationResponse: (resp) {
         debugPrint('🔔 Notification tapped: ${resp.payload}');
-        // TODO: Navigate to appropriate screen based on payload
+        // TODO: navigate via navigator key
       },
       onDidReceiveBackgroundNotificationResponse: _backgroundNotificationTapped,
     );
 
-    // ✅ Create Android channels
     if (!kIsWeb && Platform.isAndroid) {
       final android =
           _local
               .resolvePlatformSpecificImplementation<
                 AndroidFlutterLocalNotificationsPlugin
               >();
-      await _createAndroidChannelsBackground(android);
+      await _createAndroidChannels(android);
     }
 
-    // ✅ Foreground message → show local notification
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-      debugPrint('📨 Foreground message received: ${message.messageId}');
+    // ✅ Foreground: show status-bar notification + update correct BLoC
+    FirebaseMessaging.onMessage.listen((message) async {
+      debugPrint('📨 Foreground FCM: ${message.messageId}');
       await _showFromRemoteMessage(message);
+      _dispatchToBloc(message);
     });
 
-    // ✅ Token refresh
-    _messaging.onTokenRefresh.listen((newToken) async {
-      await _saveTokenLocal(newToken);
-      debugPrint('🔁 FCM token refreshed: $newToken');
+    // ✅ App opened via notification tap (background)
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      debugPrint('📲 Opened via notification: ${message.messageId}');
+      _dispatchToBloc(message);
+    });
+
+    // ✅ App launched via notification tap (terminated)
+    final initial = await _messaging.getInitialMessage();
+    if (initial != null) {
+      debugPrint('🚀 Launched via notification: ${initial.messageId}');
+      _dispatchToBloc(initial);
+    }
+
+    _messaging.onTokenRefresh.listen((token) async {
+      await _saveTokenLocal(token);
+      debugPrint('🔁 FCM token refreshed: $token');
     });
 
     _inited = true;
     debugPrint('✅ FCMService initialized');
   }
 
-  /// ✅ Get FCM token and save to SharedPrefs
+  void _dispatchToBloc(RemoteMessage message) {
+    final data = message.data;
+    final type = data['type']?.toString() ?? '';
+    final title =
+        message.notification?.title ??
+        data['title']?.toString() ??
+        'Notification';
+    final body = message.notification?.body ?? data['body']?.toString() ?? '';
+
+    if (isStaffType(type)) {
+      onStaffMessage?.call(title, body, type);
+    } else {
+      onUserMessage?.call(title, body, type);
+    }
+  }
+
+  Future<void> _showFromRemoteMessage(RemoteMessage message) async {
+    final data = message.data;
+
+    final title =
+        message.notification?.title ??
+        data['title']?.toString() ??
+        'Notification';
+    final body = message.notification?.body ?? data['body']?.toString() ?? '';
+
+    final type = data['type']?.toString() ?? '';
+
+    final channelId =
+        (data['channel_id']?.toString().trim().isNotEmpty == true)
+            ? data['channel_id'].toString()
+            : _channelIdForType(type);
+
+    final soundName = _soundForChannel(channelId);
+
+    await _local.show(
+      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title: title,
+      body: body,
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          _channelNameForId(channelId),
+          channelDescription: 'Shift and healthcare updates',
+          importance: Importance.max,
+          priority: Priority.max,
+          playSound: true,
+          enableVibration: true,
+          sound: RawResourceAndroidNotificationSound(soundName),
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+          sound: '$soundName.caf',
+        ),
+      ),
+      payload: jsonEncode(data),
+    );
+  }
+
+  // ── Token helpers ─────────────────────────────────────────────────────────
+
   Future<String?> getAndStoreToken() async {
     final token = await _messaging.getToken();
     if (token == null || token.isEmpty) return null;
@@ -266,7 +407,6 @@ class FCMService {
     await prefs.setString(_Keys.fcmToken, token);
   }
 
-  /// ✅ Send token to PHP backend (call after login)
   Future<void> syncTokenToServer({
     required String accessToken,
     required String baseUrl,
@@ -294,54 +434,10 @@ class FCMService {
                       : 'other'),
         }),
       );
+
       debugPrint('📡 save-fcm-token status=${res.statusCode} body=${res.body}');
     } catch (e) {
       debugPrint('❌ Error syncing FCM token: $e');
     }
   }
-
-  Future<void> _showFromRemoteMessage(RemoteMessage message) async {
-    final data = message.data;
-
-    final title =
-        message.notification?.title ??
-        data['title']?.toString() ??
-        'Notification';
-
-    final body = message.notification?.body ?? data['body']?.toString() ?? '';
-
-    final channelId = data['channel_id']?.toString() ?? 'ehc_default_v2';
-    final soundName = _soundForChannel(channelId);
-
-    await _local.show(
-      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title: title,
-      body: body,
-      notificationDetails: NotificationDetails(
-        android: AndroidNotificationDetails(
-          channelId,
-          _channelNameForId(channelId),
-          channelDescription: 'Shift and healthcare updates',
-          importance: Importance.max,
-          priority: Priority.max,
-          playSound: true,
-          enableVibration: true,
-          sound: RawResourceAndroidNotificationSound(soundName),
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-          sound: '${soundName}.caf',
-        ),
-      ),
-      payload: jsonEncode(data),
-    );
-  }
-}
-
-// ✅ Must also be top-level for background notification tap handling
-@pragma('vm:entry-point')
-void _backgroundNotificationTapped(NotificationResponse response) {
-  debugPrint('🔔 Background notification tapped: ${response.payload}');
 }
