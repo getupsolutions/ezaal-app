@@ -100,11 +100,14 @@ class _DashboardViewState extends State<DashboardView> {
                 padding: const EdgeInsets.only(right: 8),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(50),
-                  onTap: () {
+                  onTap: () async {
                     context.read<StaffNotificationBloc>().add(
                       FetchStaffNotifications(),
                     );
-                    NavigatorHelper.push(const NotificationUIPage());
+                    await NavigatorHelper.push(const NotificationUIPage());
+                    if (context.mounted) {
+                      context.read<StaffNotificationBloc>().add(FetchStaffUnreadCount());
+                    }
                   },
                   child: Stack(
                     clipBehavior: Clip.none,

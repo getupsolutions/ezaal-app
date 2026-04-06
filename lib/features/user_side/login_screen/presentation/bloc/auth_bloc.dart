@@ -2,7 +2,9 @@ import 'package:ezaal/core/services/fcm_service.dart';
 import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/features/user_side/login_screen/data/models/login_model.dart';
 import 'package:ezaal/features/user_side/login_screen/domain/usecase/login_usecase.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'auth_event.dart';
 import 'auth_state.dart';
 
@@ -17,6 +19,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         final storedUser = await TokenStorage.getUserData();
 
         if (storedUser != null && storedUser.accessToken.isNotEmpty) {
+          await FCMService().syncTokenToServer(
+            accessToken: storedUser.accessToken,
+            baseUrl: FCMConfig.baseUrl,
+          );
           emit(AuthSuccess(storedUser));
           return;
         }
@@ -30,7 +36,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           try {
             final user = await loginUseCase.getUserFromToken(accessToken);
             final userModel = UserModel.fromEntity(user);
+
             await TokenStorage.saveUserData(userModel);
+
+            await FCMService().syncTokenToServer(
+              accessToken: accessToken,
+              baseUrl: FCMConfig.baseUrl,
+            );
+
             emit(AuthSuccess(user));
           } catch (e) {
             await TokenStorage.clearTokens();
@@ -47,19 +60,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<LoginRequested>((event, emit) async {
       emit(AuthLoading());
       try {
-        // Auto-detect: Try admin login first, then user login
         final user = await loginUseCase.autoLogin(
           event.identifier,
           event.password,
         );
 
         await TokenStorage.saveTokens(user.accessToken, user.refreshToken);
+
         final userModel = UserModel.fromEntity(user);
         await TokenStorage.saveUserData(userModel);
 
+        // Force sync on fresh login — token may have rotated since last session
         await FCMService().syncTokenToServer(
           accessToken: user.accessToken,
-          baseUrl: 'https://app.ezaalhealthcare.com.au/api/v1/public',
+          baseUrl: FCMConfig.baseUrl,
+          force: true, // 👈 always push on login
         );
 
         emit(AuthSuccess(user));
@@ -70,6 +85,23 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     on<LogoutRequested>((event, emit) async {
       emit(AuthLoading());
+
+      try {
+        // Grab token BEFORE clearing storage
+        final accessToken = await TokenStorage.getAccessToken();
+
+        if (accessToken != null && accessToken.isNotEmpty) {
+          // Remove FCM token from server so no pushes are sent after logout
+          await FCMService().deleteTokenFromServer(
+            accessToken: accessToken,
+            baseUrl: FCMConfig.baseUrl,
+          );
+        }
+      } catch (e) {
+        // Non-fatal — proceed with logout regardless
+        debugPrint('⚠️ FCM token cleanup failed during logout: $e');
+      }
+
       await TokenStorage.clearTokens();
       emit(AuthInitial());
     });

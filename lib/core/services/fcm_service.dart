@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:ezaal/core/token_manager.dart';
+import 'package:ezaal/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,223 +17,285 @@ typedef OnFCMUserMessage =
 typedef OnFCMStaffMessage =
     void Function(String title, String body, String type);
 
-class _Keys {
-  static const fcmToken = 'fcm_token';
+class FCMConfig {
+  static const String baseUrl =
+      'https://app.ezaalhealthcare.com.au/api/v1/public';
 }
 
-/// ─────────────────────────────────────────────────────────────────────────────
-/// ✅ TOP-LEVEL BACKGROUND HANDLER (MUST be top-level)
-/// ─────────────────────────────────────────────────────────────────────────────
-@pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // ✅ Always init Firebase in background isolate
-  try {
-    await Firebase.initializeApp();
-  } catch (_) {
-    // If already initialized, ignore.
-  }
+const List<AndroidNotificationChannel> kEhcChannels = [
+  AndroidNotificationChannel(
+    'ehc_shift_approved_v2',
+    'Shift Approved',
+    description: 'Shift approved notifications',
+    importance: Importance.max,
+    playSound: true,
+    sound: RawResourceAndroidNotificationSound('approved'),
+  ),
+  AndroidNotificationChannel(
+    'ehc_shift_rejected_v2',
+    'Shift Rejected',
+    description: 'Shift rejected notifications',
+    importance: Importance.max,
+    playSound: true,
+    sound: RawResourceAndroidNotificationSound('rejected'),
+  ),
+  AndroidNotificationChannel(
+    'ehc_new_shift_v2',
+    'New Shift',
+    description: 'New shift notifications',
+    importance: Importance.max,
+    playSound: true,
+    sound: RawResourceAndroidNotificationSound('new_shift'),
+  ),
+  AndroidNotificationChannel(
+    'ehc_staff_signout_v2',
+    'Staff Signout',
+    description: 'Staff signout notifications',
+    importance: Importance.max,
+    playSound: true,
+    sound: RawResourceAndroidNotificationSound('notification'),
+  ),
+  AndroidNotificationChannel(
+    'ehc_staff_accept_v2',
+    'Staff Shift Claim',
+    description: 'Staff shift claim notifications',
+    importance: Importance.max,
+    playSound: true,
+    sound: RawResourceAndroidNotificationSound('notification'),
+  ),
+  AndroidNotificationChannel(
+    'ehc_default_v3',
+    'General',
+    description: 'General notifications',
+    importance: Importance.max,
+    playSound: true,
+    sound: RawResourceAndroidNotificationSound('notification'),
+  ),
+];
 
-  final FlutterLocalNotificationsPlugin local =
-      FlutterLocalNotificationsPlugin();
-
-  const settings = InitializationSettings(
-    android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-    iOS: DarwinInitializationSettings(),
-  );
-
-  await local.initialize(
-    settings: settings,
-    onDidReceiveBackgroundNotificationResponse: _backgroundNotificationTapped,
-  );
-
-  // ✅ Re-create Android channels in background isolate
-  if (!kIsWeb && Platform.isAndroid) {
-    final android =
-        local
-            .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin
-            >();
-    await _createAndroidChannels(android);
-  }
-
-  final data = message.data;
-
-  final title =
-      message.notification?.title ??
-      data['title']?.toString() ??
-      'Notification';
-
-  final body = message.notification?.body ?? data['body']?.toString() ?? '';
-
-  // Prefer explicit channel_id; otherwise derive from "type"
-  final type = data['type']?.toString() ?? '';
-  final channelId =
-      (data['channel_id']?.toString().trim().isNotEmpty == true)
-          ? data['channel_id'].toString()
-          : _channelIdForType(type);
-
-  final soundName = _soundForChannel(channelId);
-
-  await local.show(
-    id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-    title: title,
-    body: body,
-    notificationDetails: NotificationDetails(
-      android: AndroidNotificationDetails(
-        channelId,
-        _channelNameForId(channelId),
-        channelDescription: 'Shift and healthcare updates',
-        importance: Importance.max,
-        priority: Priority.max,
-        playSound: true,
-        enableVibration: true,
-        sound: RawResourceAndroidNotificationSound(soundName),
-      ),
-      iOS: DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-        sound: '$soundName.caf',
-      ),
-    ),
-    payload: jsonEncode(data),
-  );
-}
-
-/// ─────────────────────────────────────────────────────────────────────────────
-/// ✅ ANDROID CHANNELS (must be callable from background + foreground)
-/// ─────────────────────────────────────────────────────────────────────────────
-Future<void> _createAndroidChannels(
-  AndroidFlutterLocalNotificationsPlugin? android,
-) async {
-  if (android == null) return;
-
-  const channels = <AndroidNotificationChannel>[
-    // USER SIDE
-    AndroidNotificationChannel(
-      'ehc_shift_approved',
-      'Shift Approved',
-      description: 'Shift approved notifications',
-      importance: Importance.max,
-      playSound: true,
-      sound: RawResourceAndroidNotificationSound('approved'),
-    ),
-    AndroidNotificationChannel(
-      'ehc_shift_rejected',
-      'Shift Rejected',
-      description: 'Shift rejected notifications',
-      importance: Importance.max,
-      playSound: true,
-      sound: RawResourceAndroidNotificationSound('rejected'),
-    ),
-    AndroidNotificationChannel(
-      'ehc_new_shift',
-      'New Shift',
-      description: 'New shift notifications',
-      importance: Importance.max,
-      playSound: true,
-      sound: RawResourceAndroidNotificationSound('new_shift'),
-    ),
-
-    // STAFF SIDE
-    AndroidNotificationChannel(
-      'ehc_staff_signout',
-      'Staff Signout',
-      description: 'Staff signout notifications',
-      importance: Importance.max,
-      playSound: true,
-      sound: RawResourceAndroidNotificationSound('notification'),
-    ),
-    AndroidNotificationChannel(
-      'ehc_staff_accept',
-      'Staff Shift Claim',
-      description: 'Staff shift claim / requests notifications',
-      importance: Importance.max,
-      playSound: true,
-      sound: RawResourceAndroidNotificationSound('notification'),
-    ),
-
-    // DEFAULT
-    AndroidNotificationChannel(
-      'ehc_default_v2',
-      'General',
-      description: 'General notifications',
-      importance: Importance.max,
-      playSound: true,
-      sound: RawResourceAndroidNotificationSound('notification'),
-    ),
-  ];
-
-  for (final c in channels) {
-    await android.createNotificationChannel(c);
+String channelIdForType(String type) {
+  switch (type) {
+    case 'shift-approved':
+      return 'ehc_shift_approved_v2';
+    case 'shift-rejected':
+      return 'ehc_shift_rejected_v2';
+    case 'new-shift':
+    case 'organiz-add-reqst':
+      return 'ehc_new_shift_v2';
+    case 'staff-signout':
+      return 'ehc_staff_signout_v2';
+    case 'staff-acpt-req':
+    case 'shift-claim-pending':
+      return 'ehc_staff_accept_v2';
+    default:
+      return 'ehc_default_v3';
   }
 }
 
-/// ─────────────────────────────────────────────────────────────────────────────
-/// ✅ CHANNEL + SOUND HELPERS
-/// ─────────────────────────────────────────────────────────────────────────────
-
-String _soundForChannel(String channelId) {
+String soundForChannel(String channelId) {
   switch (channelId) {
-    case 'ehc_shift_approved':
+    case 'ehc_shift_approved_v2':
       return 'approved';
-    case 'ehc_shift_rejected':
+    case 'ehc_shift_rejected_v2':
       return 'rejected';
-    case 'ehc_new_shift':
+    case 'ehc_new_shift_v2':
       return 'new_shift';
     default:
       return 'notification';
   }
 }
 
-String _channelNameForId(String channelId) {
+String channelNameForId(String channelId) {
   switch (channelId) {
-    case 'ehc_shift_approved':
+    case 'ehc_shift_approved_v2':
       return 'Shift Approved';
-    case 'ehc_shift_rejected':
+    case 'ehc_shift_rejected_v2':
       return 'Shift Rejected';
-    case 'ehc_new_shift':
+    case 'ehc_new_shift_v2':
       return 'New Shift';
-    case 'ehc_staff_signout':
+    case 'ehc_staff_signout_v2':
       return 'Staff Signout';
-    case 'ehc_staff_accept':
+    case 'ehc_staff_accept_v2':
       return 'Staff Shift Claim';
     default:
       return 'General';
   }
 }
 
-String _channelIdForType(String type) {
-  switch (type) {
-    // user side types
-    case 'shift-approved':
-      return 'ehc_shift_approved';
-    case 'shift-rejected':
-      return 'ehc_shift_rejected';
-    case 'new-shift':
-      return 'ehc_new_shift';
+Future<void> createAndroidChannels(
+  FlutterLocalNotificationsPlugin plugin,
+) async {
+  if (kIsWeb || !Platform.isAndroid) return;
 
-    // staff side types (your API/log types)
-    case 'staff-signout':
-      return 'ehc_staff_signout';
-    case 'staff-acpt-req':
-    case 'organiz-add-reqst':
-      return 'ehc_staff_accept';
+  final android =
+      plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
 
-    default:
-      return 'ehc_default_v2';
+  if (android == null) return;
+
+  for (final channel in kEhcChannels) {
+    await android.createNotificationChannel(channel);
   }
 }
 
-@pragma('vm:entry-point')
-void _backgroundNotificationTapped(NotificationResponse response) {
-  debugPrint('🔔 Background notification tapped: ${response.payload}');
-  // TODO: navigate via global navigator key if needed
+String _defaultTitleForType(String type) {
+  switch (type) {
+    case 'shift-approved':
+      return 'Shift Approved ✓';
+    case 'shift-rejected':
+      return 'Shift Rejected';
+    case 'new-shift':
+    case 'organiz-add-reqst':
+      return 'New Shift Available';
+    case 'shift-claim-pending':
+      return 'Shift Claim Pending';
+    case 'staff-signout':
+      return 'Staff Signout';
+    case 'staff-acpt-req':
+      return 'Shift Claimed';
+    default:
+      return 'Notification';
+  }
 }
 
-/// ─────────────────────────────────────────────────────────────────────────────
-/// ✅ FCMService (Foreground + Tap handling + BLoC routing)
-/// ─────────────────────────────────────────────────────────────────────────────
+String _resolveTitle(RemoteMessage message) {
+  final data = message.data;
+  final type = data['type']?.toString() ?? '';
+
+  final dataTitle = data['title']?.toString().trim() ?? '';
+  if (dataTitle.isNotEmpty) return dataTitle;
+
+  final notifTitle = message.notification?.title?.trim() ?? '';
+  if (notifTitle.isNotEmpty) return notifTitle;
+
+  return _defaultTitleForType(type);
+}
+
+String _resolveBody(RemoteMessage message) {
+  final data = message.data;
+
+  final dataBody = data['body']?.toString().trim() ?? '';
+  if (dataBody.isNotEmpty) return dataBody;
+
+  final notifBody = message.notification?.body?.trim() ?? '';
+  if (notifBody.isNotEmpty) return notifBody;
+
+  final legacyBody = data['notification']?.toString().trim() ?? '';
+  if (legacyBody.isNotEmpty) return legacyBody;
+
+  return '';
+}
+
+String _resolveType(RemoteMessage message) {
+  return message.data['type']?.toString().trim() ?? '';
+}
+
+bool _isLikelyShiftStaffPush(String type) {
+  return {
+    'new-shift',
+    'organiz-add-reqst',
+    'shift-approved',
+    'shift-rejected',
+    'shift-claim-pending',
+    'staff-acpt-req',
+    'staff-signout',
+  }.contains(type);
+}
+
+Future<void> showFcmNotification({
+  required FlutterLocalNotificationsPlugin plugin,
+  required RemoteMessage message,
+}) async {
+  final data = message.data;
+  final type = _resolveType(message);
+  final title = _resolveTitle(message);
+  final body = _resolveBody(message);
+
+  final channelId =
+      (data['channel_id']?.toString().trim().isNotEmpty ?? false)
+          ? data['channel_id'].toString()
+          : channelIdForType(type);
+
+  final soundName = soundForChannel(channelId);
+
+  final notifId =
+      int.tryParse(data['id']?.toString() ?? '') ??
+      DateTime.now().millisecondsSinceEpoch.remainder(1000000);
+
+  final details = NotificationDetails(
+    android: AndroidNotificationDetails(
+      channelId,
+      channelNameForId(channelId),
+      channelDescription: 'Shift and healthcare updates',
+      importance: Importance.max,
+      priority: Priority.max,
+      playSound: true,
+      enableVibration: true,
+      sound: RawResourceAndroidNotificationSound(soundName),
+      styleInformation: BigTextStyleInformation(body, contentTitle: title),
+      icon: '@mipmap/ic_launcher',
+      visibility: NotificationVisibility.public,
+    ),
+    iOS: DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+      sound: '$soundName.caf',
+      interruptionLevel: InterruptionLevel.active,
+    ),
+  );
+
+  await plugin.show(
+    id: notifId,
+    title: title,
+    body: body,
+    notificationDetails: details,
+    payload: jsonEncode({...data, 'title': title, 'body': body, 'type': type}),
+  );
+
+  debugPrint(
+    '✅ Notification shown: id=$notifId title="$title" channel=$channelId type=$type',
+  );
+}
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (_) {}
+
+  debugPrint('🔔 [BG] FCM received: ${message.messageId}');
+  debugPrint('🔔 [BG] data: ${message.data}');
+  debugPrint('🔔 [BG] title: ${message.notification?.title}');
+  debugPrint('🔔 [BG] body: ${message.notification?.body}');
+
+  final plugin = FlutterLocalNotificationsPlugin();
+
+  await plugin.initialize(
+    settings: const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
+    ),
+    onDidReceiveBackgroundNotificationResponse: _onBgNotifTap,
+  );
+
+  await createAndroidChannels(plugin);
+  await showFcmNotification(plugin: plugin, message: message);
+}
+
+@pragma('vm:entry-point')
+void _onBgNotifTap(NotificationResponse response) {
+  debugPrint('🔔 BG notification tapped: ${response.payload}');
+}
+
 class FCMService {
   static final FCMService _instance = FCMService._internal();
   factory FCMService() => _instance;
@@ -239,183 +305,212 @@ class FCMService {
   final FlutterLocalNotificationsPlugin _local =
       FlutterLocalNotificationsPlugin();
 
-  bool _inited = false;
+  static bool _isInitializing = false;
+  static bool _isInitialized = false;
 
-  // Hook these from your app after blocs are created
+  StreamSubscription<RemoteMessage>? _onMessageSub;
+  StreamSubscription<RemoteMessage>? _onMessageOpenedAppSub;
+  StreamSubscription<String>? _onTokenRefreshSub;
+
+  bool _isSyncingToken = false;
+
   OnFCMUserMessage? onUserMessage;
   OnFCMStaffMessage? onStaffMessage;
 
-  static const _staffTypes = {
+  static const Set<String> _staffTypes = {
+    'new-shift',
+    'organiz-add-reqst',
+    'shift-approved',
+    'shift-rejected',
+    'shift-claim-pending',
     'staff-signout',
     'staff-acpt-req',
-    'organiz-add-reqst',
   };
 
   static bool isStaffType(String? type) => _staffTypes.contains(type);
 
-  /// Call once after Firebase.initializeApp(), before runApp UI.
   Future<void> init() async {
-    if (_inited) return;
-
-    await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      criticalAlert: true,
-    );
-
-    await _messaging.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    const settings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestBadgePermission: true,
-        requestSoundPermission: true,
-        requestCriticalPermission: true,
-      ),
-    );
-
-    await _local.initialize(
-      settings: settings,
-      onDidReceiveNotificationResponse: (resp) {
-        debugPrint('🔔 Notification tapped: ${resp.payload}');
-        // TODO: navigate via navigator key
-      },
-      onDidReceiveBackgroundNotificationResponse: _backgroundNotificationTapped,
-    );
-
-    if (!kIsWeb && Platform.isAndroid) {
-      final android =
-          _local
-              .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin
-              >();
-      await _createAndroidChannels(android);
+    if (_isInitialized || _isInitializing) {
+      debugPrint('ℹ️ FCMService already initialized or initializing');
+      return;
     }
 
-    // ✅ Foreground: show status-bar notification + update correct BLoC
-    FirebaseMessaging.onMessage.listen((message) async {
-      debugPrint('📨 Foreground FCM: ${message.messageId}');
-      await _showFromRemoteMessage(message);
-      _dispatchToBloc(message);
-    });
+    _isInitializing = true;
 
-    // ✅ App opened via notification tap (background)
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      debugPrint('📲 Opened via notification: ${message.messageId}');
-      _dispatchToBloc(message);
-    });
+    try {
+      final settings = await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        criticalAlert: true,
+        provisional: false,
+      );
+      debugPrint('📋 FCM permission: ${settings.authorizationStatus}');
 
-    // ✅ App launched via notification tap (terminated)
-    final initial = await _messaging.getInitialMessage();
-    if (initial != null) {
-      debugPrint('🚀 Launched via notification: ${initial.messageId}');
-      _dispatchToBloc(initial);
+      await _messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      await _local.initialize(
+        settings: const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          iOS: DarwinInitializationSettings(
+            requestAlertPermission: true,
+            requestBadgePermission: true,
+            requestSoundPermission: true,
+            requestCriticalPermission: true,
+          ),
+        ),
+        onDidReceiveNotificationResponse: (response) {
+          debugPrint('🔔 [FG] tapped: ${response.payload}');
+          _routePayload(response.payload);
+        },
+        onDidReceiveBackgroundNotificationResponse: _onBgNotifTap,
+      );
+
+      await createAndroidChannels(_local);
+
+      if (!kIsWeb && Platform.isAndroid) {
+        final android =
+            _local
+                .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin
+                >();
+        await android?.requestNotificationsPermission();
+      }
+
+      await _onMessageSub?.cancel();
+      _onMessageSub = FirebaseMessaging.onMessage.listen((msg) async {
+        debugPrint('📨 [FG] FCM received: ${msg.messageId}');
+        debugPrint('📨 [FG] data: ${msg.data}');
+        debugPrint('📨 [FG] notification.title: ${msg.notification?.title}');
+        debugPrint('📨 [FG] notification.body: ${msg.notification?.body}');
+
+        await showFcmNotification(plugin: _local, message: msg);
+        _dispatchToCallbacks(msg);
+      });
+
+      await _onMessageOpenedAppSub?.cancel();
+      _onMessageOpenedAppSub = FirebaseMessaging.onMessageOpenedApp.listen((
+        msg,
+      ) {
+        debugPrint('📲 Opened via notification: ${msg.messageId}');
+        _dispatchToCallbacks(msg);
+      });
+
+      final initial = await _messaging.getInitialMessage();
+      if (initial != null) {
+        debugPrint('🚀 Launched via notification: ${initial.messageId}');
+        await Future.delayed(const Duration(milliseconds: 300));
+        _dispatchToCallbacks(initial);
+      }
+
+      final token = await getAndStoreToken();
+      debugPrint('🔥 FCM TOKEN => $token');
+
+      await _onTokenRefreshSub?.cancel();
+      _onTokenRefreshSub = _messaging.onTokenRefresh.listen((token) async {
+        debugPrint('🔄 FCM token refreshed => $token');
+        await _saveToken(token);
+        await clearLastSyncedToken();
+        await syncTokenToServerIfLoggedIn(force: true);
+      });
+
+      _isInitialized = true;
+      debugPrint('✅ FCMService initialized');
+    } finally {
+      _isInitializing = false;
     }
-
-    _messaging.onTokenRefresh.listen((token) async {
-      await _saveTokenLocal(token);
-      debugPrint('🔁 FCM token refreshed: $token');
-    });
-
-    _inited = true;
-    debugPrint('✅ FCMService initialized');
   }
 
-  void _dispatchToBloc(RemoteMessage message) {
-    final data = message.data;
-    final type = data['type']?.toString() ?? '';
-    final title =
-        message.notification?.title ??
-        data['title']?.toString() ??
-        'Notification';
-    final body = message.notification?.body ?? data['body']?.toString() ?? '';
+  void _dispatchToCallbacks(RemoteMessage message) {
+    final type = _resolveType(message);
+    final title = _resolveTitle(message);
+    final body = _resolveBody(message);
 
-    if (isStaffType(type)) {
+    if (_isLikelyShiftStaffPush(type) || isStaffType(type)) {
       onStaffMessage?.call(title, body, type);
     } else {
       onUserMessage?.call(title, body, type);
     }
   }
 
-  Future<void> _showFromRemoteMessage(RemoteMessage message) async {
-    final data = message.data;
+  void _routePayload(String? payload) {
+    if (payload == null || payload.isEmpty) return;
 
-    final title =
-        message.notification?.title ??
-        data['title']?.toString() ??
-        'Notification';
-    final body = message.notification?.body ?? data['body']?.toString() ?? '';
+    try {
+      final data = jsonDecode(payload) as Map<String, dynamic>;
+      final type = data['type']?.toString() ?? '';
+      final title = data['title']?.toString() ?? '';
+      final body = data['body']?.toString() ?? '';
 
-    final type = data['type']?.toString() ?? '';
-
-    final channelId =
-        (data['channel_id']?.toString().trim().isNotEmpty == true)
-            ? data['channel_id'].toString()
-            : _channelIdForType(type);
-
-    final soundName = _soundForChannel(channelId);
-
-    await _local.show(
-      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title: title,
-      body: body,
-      notificationDetails: NotificationDetails(
-        android: AndroidNotificationDetails(
-          channelId,
-          _channelNameForId(channelId),
-          channelDescription: 'Shift and healthcare updates',
-          importance: Importance.max,
-          priority: Priority.max,
-          playSound: true,
-          enableVibration: true,
-          sound: RawResourceAndroidNotificationSound(soundName),
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-          sound: '$soundName.caf',
-        ),
-      ),
-      payload: jsonEncode(data),
-    );
+      if (_isLikelyShiftStaffPush(type) || isStaffType(type)) {
+        onStaffMessage?.call(title, body, type);
+      } else {
+        onUserMessage?.call(title, body, type);
+      }
+    } catch (e) {
+      debugPrint('❌ Error parsing notification payload: $e');
+    }
   }
-
-  // ── Token helpers ─────────────────────────────────────────────────────────
 
   Future<String?> getAndStoreToken() async {
-    final token = await _messaging.getToken();
-    if (token == null || token.isEmpty) return null;
-    await _saveTokenLocal(token);
-    debugPrint('✅ FCM token: $token');
-    return token;
+    try {
+      final token = await _messaging.getToken();
+      if (token == null || token.isEmpty) return null;
+      await _saveToken(token);
+      debugPrint('✅ FCM token stored locally: $token');
+      return token;
+    } catch (e) {
+      debugPrint('❌ Error getting FCM token: $e');
+      return null;
+    }
   }
 
-  Future<String?> getSavedToken() async {
+  Future<void> _saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_Keys.fcmToken);
+    await prefs.setString('fcm_token', token);
   }
 
-  Future<void> _saveTokenLocal(String token) async {
+  Future<void> clearLastSyncedToken() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_Keys.fcmToken, token);
+    await prefs.remove('last_synced_fcm_token');
   }
 
   Future<void> syncTokenToServer({
     required String accessToken,
     required String baseUrl,
+    bool force = false,
   }) async {
-    final token = await getAndStoreToken();
-    if (token == null) return;
+    if (_isSyncingToken) {
+      debugPrint('ℹ️ Token sync already in progress, skipping');
+      return;
+    }
+
+    _isSyncingToken = true;
 
     try {
-      final res = await http.post(
+      debugPrint('🔥 ENTER syncTokenToServer');
+
+      final token = await getAndStoreToken();
+      if (token == null || token.isEmpty) {
+        debugPrint('❌ No FCM token to sync');
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final lastSyncedToken = prefs.getString('last_synced_fcm_token');
+
+      // Force one upload unless you are 100% sure server already has it.
+      if (!force && lastSyncedToken == token) {
+        debugPrint(
+          'ℹ️ Token matches local sync cache, trying server sync anyway',
+        );
+      }
+
+      final response = await http.post(
         Uri.parse('$baseUrl/save-fcm-token'),
         headers: {
           'Authorization': 'Bearer $accessToken',
@@ -427,17 +522,75 @@ class FCMService {
           'platform':
               kIsWeb
                   ? 'web'
-                  : (Platform.isAndroid
-                      ? 'android'
-                      : Platform.isIOS
-                      ? 'ios'
-                      : 'other'),
+                  : Platform.isAndroid
+                  ? 'android'
+                  : Platform.isIOS
+                  ? 'ios'
+                  : 'other',
         }),
       );
 
-      debugPrint('📡 save-fcm-token status=${res.statusCode} body=${res.body}');
+      debugPrint('📡 save-fcm-token status: ${response.statusCode}');
+      debugPrint('📡 save-fcm-token body: ${response.body}');
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        await prefs.setString('last_synced_fcm_token', token);
+      } else {
+        debugPrint('❌ save-fcm-token failed');
+      }
     } catch (e) {
       debugPrint('❌ Error syncing FCM token: $e');
+    } finally {
+      _isSyncingToken = false;
+    }
+  }
+
+  Future<void> syncTokenToServerIfLoggedIn({bool force = false}) async {
+    try {
+      final accessToken = await TokenStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        debugPrint('ℹ️ No access token found, skipping FCM sync');
+        return;
+      }
+
+      await syncTokenToServer(
+        accessToken: accessToken,
+        baseUrl: FCMConfig.baseUrl,
+        force: force,
+      );
+    } catch (e) {
+      debugPrint('❌ Error in syncTokenToServerIfLoggedIn: $e');
+    }
+  }
+
+  Future<void> deleteTokenFromServer({
+    required String accessToken,
+    required String baseUrl,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('fcm_token');
+      if (token == null || token.isEmpty) return;
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/delete-fcm-token'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'fcm_token': token}),
+      );
+
+      debugPrint('📡 delete-fcm-token status: ${response.statusCode}');
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        await prefs.remove('fcm_token');
+        await prefs.remove('last_synced_fcm_token');
+        debugPrint('✅ FCM token deleted from server and cleared locally');
+      }
+    } catch (e) {
+      debugPrint('❌ Error deleting FCM token: $e');
     }
   }
 }

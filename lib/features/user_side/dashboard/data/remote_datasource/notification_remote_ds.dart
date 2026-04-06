@@ -9,6 +9,9 @@ class StaffNotificationRemoteDatasource {
 
   final String baseUrl = 'https://app.ezaalhealthcare.com.au/api/v1/public';
 
+  static const String defaultTypes =
+      'organiz-add-reqst,new-shift,shift-approved,shift-rejected,shift-claim-pending,staff-acpt-req';
+
   Future<Map<String, String>> _headers() async {
     final token = await TokenStorage.getAccessToken();
     return {
@@ -17,24 +20,28 @@ class StaffNotificationRemoteDatasource {
     };
   }
 
-  Future<int> fetchStaffUnreadCount({String type = 'organiz-add-reqst'}) async {
-    final uri = Uri.parse('$baseUrl/get-staff-unread-count?type=$type');
-    final res = await client.get(uri, headers: await _headers());
+  Future<int> fetchStaffUnreadCount({String type = defaultTypes}) async {
+    final uri = Uri.parse(
+      '$baseUrl/get-staff-unread-count?type=${Uri.encodeComponent(type)}',
+    );
 
+    final res = await client.get(uri, headers: await _headers());
     final decoded = jsonDecode(res.body);
+
     if (res.statusCode == 200) {
       return int.tryParse(decoded['data']?['count']?.toString() ?? '0') ?? 0;
     }
+
     throw Exception(decoded['message'] ?? 'Failed to fetch staff unread count');
   }
 
   Future<List<StaffNotificationModel>> fetchStaffNotifications({
-    String type = 'organiz-add-reqst',
+    String type = defaultTypes,
     int limit = 30,
     int offset = 0,
   }) async {
     final uri = Uri.parse(
-      '$baseUrl/get-staff-notifications?type=$type&limit=$limit&offset=$offset',
+      '$baseUrl/get-staff-notifications?type=${Uri.encodeComponent(type)}&limit=$limit&offset=$offset',
     );
 
     final res = await client.get(uri, headers: await _headers());

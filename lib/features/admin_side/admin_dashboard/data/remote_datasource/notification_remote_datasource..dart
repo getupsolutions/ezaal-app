@@ -6,6 +6,14 @@ import 'package:http/http.dart' as http;
 class NotificationRemoteDataSource {
   final String baseUrl = 'https://app.ezaalhealthcare.com.au/api/v1/public';
 
+  bool _looksLikeHtml(String body) {
+    final text = body.trim().toLowerCase();
+    return text.startsWith('<!doctype html') ||
+        text.startsWith('<html') ||
+        text.startsWith('<br') ||
+        text.contains('<b>fatal error</b>');
+  }
+
   Future<List<NotificationModel>> getNotifications() async {
     try {
       final response = await TokenRefreshService.makeAuthenticatedRequest(
@@ -14,43 +22,32 @@ class NotificationRemoteDataSource {
           headers: {
             'Authorization': 'Bearer $token',
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
           },
-          
         ),
       );
 
       print('Notifications response status: ${response.statusCode}');
       print('Notifications response body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        if (response.body.isEmpty || response.body.trim().isEmpty) {
-          return [];
-        }
-
-        final data = jsonDecode(response.body);
-
-        if (data == null || data['data'] == null) {
-          return [];
-        }
-
-        final dataList = data['data'] as List;
-        if (dataList.isEmpty) {
-          return [];
-        }
-
-        return dataList.map((e) => NotificationModel.fromJson(e)).toList();
-      } else if (response.statusCode == 404) {
-        return [];
-      } else {
-        throw Exception(
-          'Failed to fetch notifications: ${response.statusCode}',
-        );
+      if (_looksLikeHtml(response.body)) {
+        throw Exception('Backend returned HTML instead of JSON');
       }
+
+      if (response.statusCode == 200) {
+        if (response.body.trim().isEmpty) return [];
+
+        final decoded = jsonDecode(response.body);
+        final List dataList = decoded['data'] ?? [];
+        return dataList.map((e) => NotificationModel.fromJson(e)).toList();
+      }
+
+      if (response.statusCode == 404) return [];
+
+      throw Exception('Failed to fetch notifications: ${response.statusCode}');
     } catch (e) {
       print('❌ Error fetching notifications: $e');
-      if (e.toString().contains('Session expired')) {
-        rethrow;
-      }
+      if (e.toString().contains('Session expired')) rethrow;
       throw Exception('Failed to fetch notifications: $e');
     }
   }
@@ -63,13 +60,21 @@ class NotificationRemoteDataSource {
           headers: {
             'Authorization': 'Bearer $token',
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
           },
         ),
       );
 
+      print('Unread count status: ${response.statusCode}');
+      print('Unread count body: ${response.body}');
+
+      if (_looksLikeHtml(response.body)) {
+        return 0;
+      }
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['data']['unread_count'] ?? 0;
+        return int.tryParse('${data['data']['unread_count'] ?? 0}') ?? 0;
       }
       return 0;
     } catch (e) {
@@ -79,67 +84,55 @@ class NotificationRemoteDataSource {
   }
 
   Future<void> markAsRead(int notificationId) async {
-    try {
-      final response = await TokenRefreshService.makeAuthenticatedRequest(
-        (token) => http.post(
-          Uri.parse('$baseUrl/mark-notification-read'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({'notification_id': notificationId}),
-        ),
-      );
+    final response = await TokenRefreshService.makeAuthenticatedRequest(
+      (token) => http.post(
+        Uri.parse('$baseUrl/mark-notification-read'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'notification_id': notificationId}),
+      ),
+    );
 
-      if (response.statusCode != 200) {
-        throw Exception('Failed to mark notification as read');
-      }
-    } catch (e) {
-      print('❌ Error marking notification as read: $e');
-      throw Exception('Failed to mark notification as read: $e');
+    if (response.statusCode != 200) {
+      throw Exception('Failed to mark notification as read');
     }
   }
 
   Future<void> markAllAsRead() async {
-    try {
-      final response = await TokenRefreshService.makeAuthenticatedRequest(
-        (token) => http.post(
-          Uri.parse('$baseUrl/mark-all-notifications-read'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-        ),
-      );
+    final response = await TokenRefreshService.makeAuthenticatedRequest(
+      (token) => http.post(
+        Uri.parse('$baseUrl/mark-all-notifications-read'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ),
+    );
 
-      if (response.statusCode != 200) {
-        throw Exception('Failed to mark all notifications as read');
-      }
-    } catch (e) {
-      print('❌ Error marking all notifications as read: $e');
-      throw Exception('Failed to mark all notifications as read: $e');
+    if (response.statusCode != 200) {
+      throw Exception('Failed to mark all notifications as read');
     }
   }
 
   Future<void> deleteNotification(int notificationId) async {
-    try {
-      final response = await TokenRefreshService.makeAuthenticatedRequest(
-        (token) => http.post(
-          Uri.parse('$baseUrl/delete-notification'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({'notification_id': notificationId}),
-        ),
-      );
+    final response = await TokenRefreshService.makeAuthenticatedRequest(
+      (token) => http.post(
+        Uri.parse('$baseUrl/delete-notification'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'notification_id': notificationId}),
+      ),
+    );
 
-      if (response.statusCode != 200) {
-        throw Exception('Failed to delete notification');
-      }
-    } catch (e) {
-      print('❌ Error deleting notification: $e');
-      throw Exception('Failed to delete notification: $e');
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete notification');
     }
   }
 }

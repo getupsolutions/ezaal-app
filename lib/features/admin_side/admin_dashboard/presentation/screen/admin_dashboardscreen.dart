@@ -1,6 +1,6 @@
 import 'dart:async';
+
 import 'package:ezaal/core/constant/constant.dart';
-import 'package:ezaal/core/services/notification_polling.dart';
 import 'package:ezaal/core/widgets/navigator_helper.dart';
 import 'package:ezaal/features/admin_side/Shift_managemnet_Screen/presentation/screen/shift_managmentscreen.dart';
 import 'package:ezaal/features/admin_side/admin_dashboard/presentation/bloc/notification_bloc.dart';
@@ -26,8 +26,6 @@ class AdminDashboardPage extends StatefulWidget {
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final NotificationPollingService _pollingService =
-      NotificationPollingService();
 
   String greeting = "";
   late Timer _timer;
@@ -47,25 +45,20 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         });
       }
     });
-    _pollingService.onPoll = () {
-      if (mounted) {
-        context.read<NotificationBloc>().add(FetchUnreadCount());
-      }
-    };
 
-    _pollingService.startPolling(intervalSeconds: 30);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<NotificationBloc>().add(FetchNotifications());
+      }
+    });
   }
 
   @override
   void dispose() {
     _timer.cancel();
-    _pollingService.stopPolling();
     super.dispose();
   }
 
-  // ---------------------------
-  // TIME-BASED GREETINGS
-  // ---------------------------
   void updateGreeting() {
     final hour = DateTime.now().hour;
 
@@ -85,7 +78,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final width = MediaQuery.of(context).size.width;
     final height = MediaQuery.of(context).size.height;
 
-    // Responsive spacing
     double smallGap = height * 0.01;
     double mediumGap = height * 0.02;
     double largeGap = height * 0.03;
@@ -115,7 +107,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return Scaffold(
       key: _scaffoldKey,
       drawer: const AdminDrawer(),
-
       appBar: AppBar(
         centerTitle: true,
         backgroundColor: primaryDarK,
@@ -162,8 +153,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   children: [
                     IconButton(
                       icon: Icon(Icons.notifications, color: kWhite, size: 26),
-                      onPressed: () {
-                        NavigatorHelper.push(NotificationPage());
+                      onPressed: () async {
+                        await NavigatorHelper.push(NotificationPage());
+                        if (context.mounted) {
+                          context.read<NotificationBloc>().add(FetchNotifications());
+                        }
                       },
                     ),
                     if (unreadCount > 0)
@@ -171,19 +165,19 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         right: 8,
                         top: 8,
                         child: Container(
-                          padding: EdgeInsets.all(4),
-                          decoration: BoxDecoration(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
                             color: Colors.red,
                             shape: BoxShape.circle,
                           ),
-                          constraints: BoxConstraints(
+                          constraints: const BoxConstraints(
                             minWidth: 18,
                             minHeight: 18,
                           ),
                           child: Center(
                             child: Text(
                               unreadCount > 99 ? '99+' : unreadCount.toString(),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -201,10 +195,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             builder: (context, state) {
               String userName = "User";
               String? photo;
+
               if (state is AuthSuccess) {
                 userName = state.user.name.trim();
                 photo = state.user.photoUrl;
               }
+
               return Padding(
                 padding: const EdgeInsets.only(right: 16),
                 child: Row(
@@ -244,7 +240,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
         ],
       ),
-
       body: Padding(
         padding: EdgeInsets.symmetric(
           horizontal:
@@ -266,6 +261,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             BlocBuilder<AuthBloc, AuthState>(
               builder: (context, state) {
                 String userName = "User";
+
                 if (state is AuthSuccess) {
                   userName = state.user.name.trim();
                 }
@@ -281,7 +277,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         color: primaryDarK,
                       ),
                     ),
-
                     Text(
                       userName,
                       style: TextStyle(
@@ -290,12 +285,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         color: Colors.black,
                       ),
                     ),
-
                     SizedBox(height: mediumGap),
-
                     Row(
                       children: [
-                        // DATE
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -316,10 +308,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                             ],
                           ),
                         ),
-
                         SizedBox(width: mediumGap),
-
-                        // TIME
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,
@@ -350,18 +339,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 );
               },
             ),
-
             SizedBox(height: largeGap),
-
             const Text(
               "Dashboard",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-
             SizedBox(height: smallGap),
             Divider(color: kBlack),
             SizedBox(height: largeGap),
-
             DashboardTile(
               color: primaryDarK,
               icon: Icons.bar_chart_outlined,
@@ -370,7 +355,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               onTap: () => NavigatorHelper.push(ShiftManagmentscreen()),
             ),
             SizedBox(height: smallGap),
-
             DashboardTile(
               color: primaryDarK,
               icon: Icons.event_available,

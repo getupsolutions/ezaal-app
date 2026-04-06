@@ -2,7 +2,10 @@ abstract class StaffNotificationEvent {}
 
 class FetchStaffUnreadCount extends StaffNotificationEvent {
   final String type;
-  FetchStaffUnreadCount({this.type = 'organiz-add-reqst'});
+  FetchStaffUnreadCount({
+    this.type =
+        'organiz-add-reqst,new-shift,shift-approved,shift-rejected,shift-claim-pending,staff-acpt-req',
+  });
 }
 
 class FetchStaffNotifications extends StaffNotificationEvent {
@@ -11,32 +14,9 @@ class FetchStaffNotifications extends StaffNotificationEvent {
   final int offset;
 
   FetchStaffNotifications({
-    this.type = 'organiz-add-reqst',
+    this.type =
+        'organiz-add-reqst,new-shift,shift-approved,shift-rejected,shift-claim-pending,staff-acpt-req',
     this.limit = 30,
     this.offset = 0,
-  });
-}
-
-abstract class UserNotificationEvent {}
-
-class FetchUserUnreadCount extends UserNotificationEvent {}
-
-class FetchUserNotifications extends UserNotificationEvent {
-  final int limit;
-  final int offset;
-  FetchUserNotifications({this.limit = 30, this.offset = 0});
-}
-
-/// Fired by FCMService when a foreground push arrives for the user side.
-/// Instantly prepends the item to the list without a network round-trip.
-class PushUserNotification extends UserNotificationEvent {
-  final String title;
-  final String body;
-  final String type;
-
-  PushUserNotification({
-    required this.title,
-    required this.body,
-    required this.type,
   });
 }
