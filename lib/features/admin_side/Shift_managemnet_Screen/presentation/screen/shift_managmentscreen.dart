@@ -610,6 +610,14 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                       ],
                       const SizedBox(height: 4),
                       Text(
+                        shift.notes,
+                        style: TextStyle(
+                          fontSize: fontScale(11),
+                          color: primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
                         shift.status,
                         style: TextStyle(
                           fontSize: fontScale(11),
