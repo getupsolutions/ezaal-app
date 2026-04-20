@@ -26,7 +26,7 @@ import 'package:ezaal/features/user_side/available_shift_page/domain/repository/
 import 'package:ezaal/features/user_side/available_shift_page/domain/usecase/claim_shift_usecase.dart';
 import 'package:ezaal/features/user_side/available_shift_page/domain/usecase/get_availableshift.dart';
 import 'package:ezaal/features/user_side/available_shift_page/presentation/bloc/shift_bloc.dart';
-import 'package:ezaal/features/user_side/clock_in_&_out_page/data/repository/notification_repository_impl.dart';
+import 'package:ezaal/features/user_side/dashboard/data/repository_impl/notification_repository_impl.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/data/repository/slot_repository_impl.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/repository/managerinfo_repository.dart';
 import 'package:ezaal/features/user_side/clock_in_&_out_page/domain/repository/slot_repository.dart';
@@ -84,8 +84,11 @@ Future<void> init() async {
   //Bloc
   sl.registerFactory(() => SplashBloc());
   sl.registerFactory(
-    () =>
-        StaffNotificationBloc(getUnreadCountUC: sl(), getNotificationsUC: sl()),
+    () => StaffNotificationBloc(
+      getUnreadCountUC: sl(),
+      getNotificationsUC: sl(),
+      deleteStaffNotificationUC: sl(),
+    ),
   );
 
   sl.registerFactory(() => AuthBloc(sl()));
@@ -169,6 +172,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => SendStaffAvailableShiftMailUseCase(sl()));
   sl.registerLazySingleton(() => GetStaffUnreadCountUC(sl()));
   sl.registerLazySingleton(() => GetStaffNotificationsUC(sl()));
+  sl.registerLazySingleton(() => DeleteStaffNotificationUC(sl()));
 
   //! Repository
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl()));

@@ -3,17 +3,20 @@ import 'package:ezaal/features/user_side/dashboard/presentation/bloc/staff_noti_
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/staff_noti_state.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-
-class StaffNotificationBloc extends Bloc<StaffNotificationEvent, StaffNotificationState> {
+class StaffNotificationBloc
+    extends Bloc<StaffNotificationEvent, StaffNotificationState> {
   final GetStaffUnreadCountUC getUnreadCountUC;
   final GetStaffNotificationsUC getNotificationsUC;
+  final DeleteStaffNotificationUC deleteStaffNotificationUC;
 
   StaffNotificationBloc({
     required this.getUnreadCountUC,
     required this.getNotificationsUC,
+    required this.deleteStaffNotificationUC,
   }) : super(StaffNotificationState.initial()) {
     on<FetchStaffUnreadCount>(_fetchUnread);
     on<FetchStaffNotifications>(_fetchList);
+    on<DeleteStaffNotification>(_deleteNotification);
   }
 
   Future<void> _fetchUnread(
@@ -44,6 +47,44 @@ class StaffNotificationBloc extends Bloc<StaffNotificationEvent, StaffNotificati
       );
     } catch (e) {
       emit(state.copyWith(loading: false, error: e.toString()));
+    }
+  }
+
+  Future<void> _deleteNotification(
+    DeleteStaffNotification event,
+    Emitter<StaffNotificationState> emit,
+  ) async {
+    emit(state.copyWith(deleting: true, error: null));
+
+    try {
+      final deletedItem =
+          state.staffNotifications
+              .where((e) => e.id == event.notificationId)
+              .toList();
+
+      final wasUnread =
+          deletedItem.isNotEmpty ? deletedItem.first.isUnread : false;
+
+      await deleteStaffNotificationUC(event.notificationId);
+
+      final updatedList =
+          state.staffNotifications
+              .where((e) => e.id != event.notificationId)
+              .toList();
+
+      emit(
+        state.copyWith(
+          deleting: false,
+          staffNotifications: updatedList,
+          staffUnreadCount:
+              wasUnread && state.staffUnreadCount > 0
+                  ? state.staffUnreadCount - 1
+                  : state.staffUnreadCount,
+          error: null,
+        ),
+      );
+    } catch (e) {
+      emit(state.copyWith(deleting: false, error: e.toString()));
     }
   }
 }

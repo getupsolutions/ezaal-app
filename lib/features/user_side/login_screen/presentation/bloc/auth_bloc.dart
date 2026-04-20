@@ -2,7 +2,7 @@ import 'package:ezaal/core/services/fcm_service.dart';
 import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/features/user_side/login_screen/data/models/login_model.dart';
 import 'package:ezaal/features/user_side/login_screen/domain/usecase/login_usecase.dart';
-import 'package:flutter/rendering.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'auth_event.dart';
@@ -19,16 +19,24 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         final storedUser = await TokenStorage.getUserData();
 
         if (storedUser != null && storedUser.accessToken.isNotEmpty) {
-          await FCMService().syncTokenToServer(
+          final authType = storedUser.isAdmin ? 'admin' : 'user';
+
+          await TokenStorage.saveAuthType(authType);
+
+          await FCMService().setLoginContext(
             accessToken: storedUser.accessToken,
-            baseUrl: FCMConfig.baseUrl,
+            authType: authType,
           );
+
+          await FCMService().syncTokenToServerIfLoggedIn();
+
           emit(AuthSuccess(storedUser));
           return;
         }
 
         final accessToken = await TokenStorage.getAccessToken();
         final refreshToken = await TokenStorage.getRefreshToken();
+        final savedAuthType = await TokenStorage.getAuthType();
 
         if (accessToken != null &&
             refreshToken != null &&
@@ -39,13 +47,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
             await TokenStorage.saveUserData(userModel);
 
-            await FCMService().syncTokenToServer(
+            final authType = savedAuthType ?? (user.isAdmin ? 'admin' : 'user');
+
+            await TokenStorage.saveAuthType(authType);
+
+            await FCMService().setLoginContext(
               accessToken: accessToken,
-              baseUrl: FCMConfig.baseUrl,
+              authType: authType,
             );
+
+            await FCMService().syncTokenToServerIfLoggedIn();
 
             emit(AuthSuccess(user));
           } catch (e) {
+            await FCMService().clearLoginContext();
             await TokenStorage.clearTokens();
             emit(AuthInitial());
           }
@@ -59,23 +74,27 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     on<LoginRequested>((event, emit) async {
       emit(AuthLoading());
+
       try {
         final user = await loginUseCase.autoLogin(
           event.identifier,
           event.password,
         );
 
+        final authType = user.isAdmin ? 'admin' : 'user';
+
         await TokenStorage.saveTokens(user.accessToken, user.refreshToken);
+        await TokenStorage.saveAuthType(authType);
 
         final userModel = UserModel.fromEntity(user);
         await TokenStorage.saveUserData(userModel);
 
-        // Force sync on fresh login — token may have rotated since last session
-        await FCMService().syncTokenToServer(
+        await FCMService().setLoginContext(
           accessToken: user.accessToken,
-          baseUrl: FCMConfig.baseUrl,
-          force: true, // 👈 always push on login
+          authType: authType,
         );
+
+        await FCMService().syncTokenToServerIfLoggedIn(force: true);
 
         emit(AuthSuccess(user));
       } catch (e) {
@@ -87,18 +106,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(AuthLoading());
 
       try {
-        // Grab token BEFORE clearing storage
-        final accessToken = await TokenStorage.getAccessToken();
-
-        if (accessToken != null && accessToken.isNotEmpty) {
-          // Remove FCM token from server so no pushes are sent after logout
-          await FCMService().deleteTokenFromServer(
-            accessToken: accessToken,
-            baseUrl: FCMConfig.baseUrl,
-          );
-        }
+        await FCMService().logoutCleanup();
       } catch (e) {
-        // Non-fatal — proceed with logout regardless
         debugPrint('⚠️ FCM token cleanup failed during logout: $e');
       }
 

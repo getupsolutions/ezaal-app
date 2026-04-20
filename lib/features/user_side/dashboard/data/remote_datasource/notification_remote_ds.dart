@@ -56,4 +56,24 @@ class StaffNotificationRemoteDatasource {
       decoded['message'] ?? 'Failed to fetch staff notifications',
     );
   }
+
+  Future<void> deleteStaffNotification(int notificationId) async {
+    final uri = Uri.parse('$baseUrl/delete-notification');
+
+    final res = await client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({'notification_id': notificationId}),
+    );
+
+    final decoded = jsonDecode(res.body);
+
+    if (res.statusCode == 200) {
+      return;
+    }
+
+    throw Exception(
+      decoded['message'] ?? 'Failed to delete staff notification',
+    );
+  }
 }

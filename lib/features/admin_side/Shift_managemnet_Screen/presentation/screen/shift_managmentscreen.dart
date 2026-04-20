@@ -477,6 +477,7 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
   ) {
     final hasStaff = shift.staffName.isNotEmpty;
     final isCompleted = shift.hasClockInOut;
+    final hasStaffType = shift.staffTypeDesignation.trim().isNotEmpty;
 
     return Container(
       margin: EdgeInsets.only(bottom: height * 0.015),
@@ -595,6 +596,18 @@ class _ShiftManagmentscreenState extends State<ShiftManagmentscreen> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                      const SizedBox(height: 4),
+                      if (hasStaffType) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Staff Type: ${shift.staffTypeDesignation}',
+                          style: TextStyle(
+                            fontSize: fontScale(12),
+                            color: primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 4),
                       Text(
                         shift.status,

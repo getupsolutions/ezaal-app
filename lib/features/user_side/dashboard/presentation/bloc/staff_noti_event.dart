@@ -20,3 +20,9 @@ class FetchStaffNotifications extends StaffNotificationEvent {
     this.offset = 0,
   });
 }
+
+class DeleteStaffNotification extends StaffNotificationEvent {
+  final int notificationId;
+
+  DeleteStaffNotification({required this.notificationId});
+}

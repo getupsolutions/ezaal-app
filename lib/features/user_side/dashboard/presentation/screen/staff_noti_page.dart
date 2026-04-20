@@ -1,3 +1,4 @@
+import 'package:ezaal/features/user_side/dashboard/domain/enitity/staff_notification_entity.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/staff_noti_bloc.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/staff_noti_event.dart';
 import 'package:ezaal/features/user_side/dashboard/presentation/bloc/staff_noti_state.dart';
@@ -29,11 +30,55 @@ class _NotificationUIPageState extends State<NotificationUIPage> {
   }
 
   String _formatDate(DateTime dt) {
-    // Simple readable format without extra packages
     String two(int n) => n.toString().padLeft(2, '0');
     final d = '${two(dt.day)}-${two(dt.month)}-${dt.year}';
     final t = '${two(dt.hour)}:${two(dt.minute)}';
     return '$d • $t';
+  }
+
+  Future<void> _refreshData() async {
+    context.read<StaffNotificationBloc>().add(FetchStaffNotifications());
+    context.read<StaffNotificationBloc>().add(FetchStaffUnreadCount());
+  }
+
+  Future<void> _confirmDelete(StaffNotificationEntity notification) async {
+    final shouldDelete =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Delete Notification'),
+              content: const Text(
+                'Are you sure you want to delete this notification?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Delete'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!shouldDelete || !mounted) return;
+
+    context.read<StaffNotificationBloc>().add(
+      DeleteStaffNotification(notificationId: notification.id),
+    );
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Notification deleted')));
   }
 
   @override
@@ -61,10 +106,20 @@ class _NotificationUIPageState extends State<NotificationUIPage> {
         ],
       ),
       body: SafeArea(
-        child: BlocBuilder<StaffNotificationBloc, StaffNotificationState>(
-          builder: (context, state) {
-            // Error state (if you have error in state)
+        child: BlocConsumer<StaffNotificationBloc, StaffNotificationState>(
+          listener: (context, state) {
             if ((state.error ?? '').isNotEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.error!),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+          builder: (context, state) {
+            if ((state.error ?? '').isNotEmpty &&
+                state.staffNotifications.isEmpty) {
               return _ErrorState(
                 message: state.error!,
                 onRetry: () {
@@ -89,7 +144,6 @@ class _NotificationUIPageState extends State<NotificationUIPage> {
 
             return Column(
               children: [
-                // Top summary + controls
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
                   child: Column(
@@ -124,21 +178,12 @@ class _NotificationUIPageState extends State<NotificationUIPage> {
                     ],
                   ),
                 ),
-
-                // Content
                 Expanded(
                   child:
                       state.loading
                           ? const _LoadingList()
                           : RefreshIndicator(
-                            onRefresh: () async {
-                              context.read<StaffNotificationBloc>().add(
-                                FetchStaffNotifications(),
-                              );
-                              context.read<StaffNotificationBloc>().add(
-                                FetchStaffUnreadCount(),
-                              );
-                            },
+                            onRefresh: _refreshData,
                             child:
                                 filtered.isEmpty
                                     ? _EmptyState(
@@ -168,9 +213,8 @@ class _NotificationUIPageState extends State<NotificationUIPage> {
                                           title: n.notification,
                                           dateText: _formatDate(n.addedOn),
                                           isUnread: n.isUnread,
+                                          deleting: state.deleting,
                                           onTap: () {
-                                            // You can navigate using n.link if you add it
-                                            // For now just show details
                                             showModalBottomSheet(
                                               context: context,
                                               backgroundColor: Colors.white,
@@ -192,9 +236,16 @@ class _NotificationUIPageState extends State<NotificationUIPage> {
                                                           n.addedOn,
                                                         ),
                                                         isUnread: n.isUnread,
+                                                        onDelete: () {
+                                                          Navigator.pop(
+                                                            context,
+                                                          );
+                                                          _confirmDelete(n);
+                                                        },
                                                       ),
                                             );
                                           },
+                                          onDelete: () => _confirmDelete(n),
                                         );
                                       },
                                     ),
@@ -208,10 +259,6 @@ class _NotificationUIPageState extends State<NotificationUIPage> {
     );
   }
 }
-
-/// ==========================
-/// UI WIDGETS
-/// ==========================
 
 class _TopSummaryCard extends StatelessWidget {
   final int unreadCount;
@@ -389,13 +436,17 @@ class _NotificationCard extends StatelessWidget {
   final String title;
   final String dateText;
   final bool isUnread;
+  final bool deleting;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   const _NotificationCard({
     required this.title,
     required this.dateText,
     required this.isUnread,
+    required this.deleting,
     required this.onTap,
+    required this.onDelete,
   });
 
   @override
@@ -459,7 +510,23 @@ class _NotificationCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: deleting ? null : onDelete,
+                          icon:
+                              deleting
+                                  ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                  : const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: Colors.red,
+                                  ),
+                        ),
+                        const SizedBox(width: 4),
                         Icon(
                           Icons.chevron_right_rounded,
                           color: Colors.grey[500],
@@ -509,12 +576,14 @@ class _NotificationDetailSheet extends StatelessWidget {
   final String message;
   final String dateText;
   final bool isUnread;
+  final VoidCallback onDelete;
 
   const _NotificationDetailSheet({
     required this.title,
     required this.message,
     required this.dateText,
     required this.isUnread,
+    required this.onDelete,
   });
 
   @override
@@ -587,18 +656,36 @@ class _NotificationDetailSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onDelete,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Delete'),
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              child: const Text('Close'),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Close'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -726,15 +813,14 @@ class _LoadingList extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-      itemCount: 8,
+      itemCount: 6,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (_, __) {
         return Container(
-          height: 82,
+          height: 92,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.withOpacity(0.12)),
           ),
         );
       },

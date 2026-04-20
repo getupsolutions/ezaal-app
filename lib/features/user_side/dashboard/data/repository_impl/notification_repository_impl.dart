@@ -23,4 +23,9 @@ class StaffNotificationRepositoryImpl implements StaffNotificationRepository {
       offset: offset,
     );
   }
+
+  @override
+  Future<void> deleteStaffNotification(int notificationId) {
+    return remote.deleteStaffNotification(notificationId);
+  }
 }

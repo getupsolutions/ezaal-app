@@ -16,6 +16,7 @@ import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_blo
 import 'package:ezaal/features/user_side/login_screen/presentation/bloc/auth_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:ezaal/core/services/fcm_service.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -29,6 +30,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   String greeting = "";
   late Timer _timer;
+
+  final FCMService _fcmService = FCMService();
+  OnFCMStaffMessage? _previousStaffMessageHandler;
 
   @override
   void initState() {
@@ -51,11 +55,29 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         context.read<NotificationBloc>().add(FetchNotifications());
       }
     });
+    _previousStaffMessageHandler = _fcmService.onStaffMessage;
+    _fcmService.onStaffMessage = (title, body, type) {
+      _previousStaffMessageHandler?.call(title, body, type);
+
+      if (!mounted) return;
+
+      const adminNotificationTypes = {
+        'shift-claim-pending',
+        'staff-signin',
+        'staff-signout',
+        'staff-acpt-req',
+      };
+
+      if (adminNotificationTypes.contains(type)) {
+        context.read<NotificationBloc>().add(RefreshNotifications());
+      }
+    };
   }
 
   @override
   void dispose() {
     _timer.cancel();
+    _fcmService.onStaffMessage = _previousStaffMessageHandler;
     super.dispose();
   }
 
@@ -156,7 +178,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       onPressed: () async {
                         await NavigatorHelper.push(NotificationPage());
                         if (context.mounted) {
-                          context.read<NotificationBloc>().add(FetchNotifications());
+                          context.read<NotificationBloc>().add(
+                            FetchNotifications(),
+                          );
                         }
                       },
                     ),

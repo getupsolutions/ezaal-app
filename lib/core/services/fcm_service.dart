@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:ezaal/core/token_manager.dart';
 import 'package:ezaal/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -48,6 +47,14 @@ const List<AndroidNotificationChannel> kEhcChannels = [
     sound: RawResourceAndroidNotificationSound('new_shift'),
   ),
   AndroidNotificationChannel(
+    'ehc_staff_signin_v2',
+    'Staff Signin',
+    description: 'Staff signin notifications',
+    importance: Importance.max,
+    playSound: true,
+    sound: RawResourceAndroidNotificationSound('notification'),
+  ),
+  AndroidNotificationChannel(
     'ehc_staff_signout_v2',
     'Staff Signout',
     description: 'Staff signout notifications',
@@ -82,6 +89,8 @@ String channelIdForType(String type) {
     case 'new-shift':
     case 'organiz-add-reqst':
       return 'ehc_new_shift_v2';
+    case 'staff-signin':
+      return 'ehc_staff_signin_v2';
     case 'staff-signout':
       return 'ehc_staff_signout_v2';
     case 'staff-acpt-req':
@@ -113,6 +122,8 @@ String channelNameForId(String channelId) {
       return 'Shift Rejected';
     case 'ehc_new_shift_v2':
       return 'New Shift';
+    case 'ehc_staff_signin_v2':
+      return 'Staff Signin';
     case 'ehc_staff_signout_v2':
       return 'Staff Signout';
     case 'ehc_staff_accept_v2':
@@ -151,6 +162,8 @@ String _defaultTitleForType(String type) {
       return 'New Shift Available';
     case 'shift-claim-pending':
       return 'Shift Claim Pending';
+    case 'staff-signin':
+      return 'Staff Signin';
     case 'staff-signout':
       return 'Staff Signout';
     case 'staff-acpt-req':
@@ -200,6 +213,7 @@ bool _isLikelyShiftStaffPush(String type) {
     'shift-rejected',
     'shift-claim-pending',
     'staff-acpt-req',
+    'staff-signin',
     'staff-signout',
   }.contains(type);
 }
@@ -222,7 +236,8 @@ Future<void> showFcmNotification({
 
   final notifId =
       int.tryParse(data['id']?.toString() ?? '') ??
-      DateTime.now().millisecondsSinceEpoch.remainder(1000000);
+      int.tryParse(data['requestID']?.toString() ?? '') ??
+      (message.messageId?.hashCode ?? '$type|$title|$body'.hashCode);
 
   final details = NotificationDetails(
     android: AndroidNotificationDetails(
@@ -273,22 +288,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('🔔 [BG] title: ${message.notification?.title}');
   debugPrint('🔔 [BG] body: ${message.notification?.body}');
 
-  final plugin = FlutterLocalNotificationsPlugin();
-
-  await plugin.initialize(
-    settings: const InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(
-        requestAlertPermission: false,
-        requestBadgePermission: false,
-        requestSoundPermission: false,
-      ),
-    ),
-    onDidReceiveBackgroundNotificationResponse: _onBgNotifTap,
-  );
-
-  await createAndroidChannels(plugin);
-  await showFcmNotification(plugin: plugin, message: message);
+  // IMPORTANT:
+  // Backend already sends `notification` payload.
+  // So Android/iOS system will show it automatically in background/killed.
+  // Do NOT call showFcmNotification() here, otherwise duplicate popup happens.
 }
 
 @pragma('vm:entry-point')
@@ -300,6 +303,12 @@ class FCMService {
   static final FCMService _instance = FCMService._internal();
   factory FCMService() => _instance;
   FCMService._internal();
+
+  static const _kFcmTokenKey = 'fcm_token';
+  static const _kLastSyncedFcmTokenKey = 'last_synced_fcm_token';
+  static const _kAccessTokenKey = 'auth_access_token';
+  static const _kAuthTypeKey = 'auth_type';
+  static const _kHandledMessagesKey = 'handled_fcm_messages';
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _local =
@@ -323,6 +332,7 @@ class FCMService {
     'shift-approved',
     'shift-rejected',
     'shift-claim-pending',
+    'staff-signin',
     'staff-signout',
     'staff-acpt-req',
   };
@@ -388,6 +398,12 @@ class FCMService {
         debugPrint('📨 [FG] notification.title: ${msg.notification?.title}');
         debugPrint('📨 [FG] notification.body: ${msg.notification?.body}');
 
+        if (await _isDuplicateMessage(msg)) {
+          debugPrint('ℹ️ Duplicate foreground message ignored');
+          return;
+        }
+
+        await _rememberMessage(msg);
         await showFcmNotification(plugin: _local, message: msg);
         _dispatchToCallbacks(msg);
       });
@@ -395,16 +411,25 @@ class FCMService {
       await _onMessageOpenedAppSub?.cancel();
       _onMessageOpenedAppSub = FirebaseMessaging.onMessageOpenedApp.listen((
         msg,
-      ) {
+      ) async {
         debugPrint('📲 Opened via notification: ${msg.messageId}');
+
+        if (await _isDuplicateOpen(msg)) {
+          debugPrint('ℹ️ Duplicate opened-app event ignored');
+          return;
+        }
+
         _dispatchToCallbacks(msg);
       });
 
       final initial = await _messaging.getInitialMessage();
       if (initial != null) {
         debugPrint('🚀 Launched via notification: ${initial.messageId}');
-        await Future.delayed(const Duration(milliseconds: 300));
-        _dispatchToCallbacks(initial);
+
+        if (!await _isDuplicateOpen(initial)) {
+          await Future.delayed(const Duration(milliseconds: 300));
+          _dispatchToCallbacks(initial);
+        }
       }
 
       final token = await getAndStoreToken();
@@ -420,9 +445,61 @@ class FCMService {
 
       _isInitialized = true;
       debugPrint('✅ FCMService initialized');
+    } catch (e) {
+      debugPrint('❌ FCM init error: $e');
     } finally {
       _isInitializing = false;
     }
+  }
+
+  Future<String> _messageKey(RemoteMessage message) async {
+    return message.messageId ??
+        message.data['requestID']?.toString() ??
+        message.data['id']?.toString() ??
+        '${_resolveType(message)}|${_resolveTitle(message)}|${_resolveBody(message)}';
+  }
+
+  Future<List<String>> _getHandledMessages() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_kHandledMessagesKey) ?? [];
+  }
+
+  Future<void> _setHandledMessages(List<String> values) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kHandledMessagesKey, values);
+  }
+
+  Future<bool> _isDuplicateMessage(RemoteMessage message) async {
+    final key = await _messageKey(message);
+    final handled = await _getHandledMessages();
+    return handled.contains('msg:$key');
+  }
+
+  Future<void> _rememberMessage(RemoteMessage message) async {
+    final key = await _messageKey(message);
+    final handled = await _getHandledMessages();
+    handled.add('msg:$key');
+
+    final trimmed =
+        handled.length > 100 ? handled.sublist(handled.length - 100) : handled;
+
+    await _setHandledMessages(trimmed);
+  }
+
+  Future<bool> _isDuplicateOpen(RemoteMessage message) async {
+    final key = await _messageKey(message);
+    final handled = await _getHandledMessages();
+
+    if (handled.contains('open:$key')) {
+      return true;
+    }
+
+    handled.add('open:$key');
+    final trimmed =
+        handled.length > 100 ? handled.sublist(handled.length - 100) : handled;
+
+    await _setHandledMessages(trimmed);
+    return false;
   }
 
   void _dispatchToCallbacks(RemoteMessage message) {
@@ -471,17 +548,50 @@ class FCMService {
 
   Future<void> _saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('fcm_token', token);
+    await prefs.setString(_kFcmTokenKey, token);
+  }
+
+  Future<String?> getLocalToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kFcmTokenKey);
   }
 
   Future<void> clearLastSyncedToken() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('last_synced_fcm_token');
+    await prefs.remove(_kLastSyncedFcmTokenKey);
+  }
+
+  Future<void> setLoginContext({
+    required String accessToken,
+    required String authType,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kAccessTokenKey, accessToken);
+    await prefs.setString(_kAuthTypeKey, authType);
+    debugPrint('✅ Login context saved => $authType');
+  }
+
+  Future<void> clearLoginContext() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kAccessTokenKey);
+    await prefs.remove(_kAuthTypeKey);
+    debugPrint('✅ Login context cleared');
+  }
+
+  Future<String?> _getAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kAccessTokenKey);
+  }
+
+  Future<String?> _getAuthType() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kAuthTypeKey);
   }
 
   Future<void> syncTokenToServer({
     required String accessToken,
     required String baseUrl,
+    required String authType,
     bool force = false,
   }) async {
     if (_isSyncingToken) {
@@ -501,24 +611,23 @@ class FCMService {
       }
 
       final prefs = await SharedPreferences.getInstance();
-      final lastSyncedToken = prefs.getString('last_synced_fcm_token');
+      final lastSyncedToken = prefs.getString(_kLastSyncedFcmTokenKey);
 
-      // Force one upload unless you are 100% sure server already has it.
       if (!force && lastSyncedToken == token) {
-        debugPrint(
-          'ℹ️ Token matches local sync cache, trying server sync anyway',
-        );
+        debugPrint('ℹ️ FCM token already synced, skipping duplicate upload');
+        return;
       }
 
       final response = await http.post(
         Uri.parse('$baseUrl/save-fcm-token'),
         headers: {
-          'Authorization': 'Bearer $accessToken',
-          'Content-Type': 'application/json',
+          HttpHeaders.authorizationHeader: 'Bearer $accessToken',
+          HttpHeaders.contentTypeHeader: 'application/json',
           'Accept': 'application/json',
         },
         body: jsonEncode({
           'fcm_token': token,
+          'auth_type': authType,
           'platform':
               kIsWeb
                   ? 'web'
@@ -534,7 +643,8 @@ class FCMService {
       debugPrint('📡 save-fcm-token body: ${response.body}');
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        await prefs.setString('last_synced_fcm_token', token);
+        await prefs.setString(_kLastSyncedFcmTokenKey, token);
+        debugPrint('✅ save-fcm-token success');
       } else {
         debugPrint('❌ save-fcm-token failed');
       }
@@ -547,15 +657,23 @@ class FCMService {
 
   Future<void> syncTokenToServerIfLoggedIn({bool force = false}) async {
     try {
-      final accessToken = await TokenStorage.getAccessToken();
+      final accessToken = await _getAccessToken();
+      final authType = await _getAuthType();
+
       if (accessToken == null || accessToken.isEmpty) {
         debugPrint('ℹ️ No access token found, skipping FCM sync');
+        return;
+      }
+
+      if (authType == null || authType.isEmpty) {
+        debugPrint('ℹ️ No auth type found, skipping FCM sync');
         return;
       }
 
       await syncTokenToServer(
         accessToken: accessToken,
         baseUrl: FCMConfig.baseUrl,
+        authType: authType,
         force: force,
       );
     } catch (e) {
@@ -563,34 +681,54 @@ class FCMService {
     }
   }
 
-  Future<void> deleteTokenFromServer({
-    required String accessToken,
-    required String baseUrl,
-  }) async {
+  Future<void> deleteTokenFromServer() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('fcm_token');
-      if (token == null || token.isEmpty) return;
+      final token = prefs.getString(_kFcmTokenKey);
+      final accessToken = prefs.getString(_kAccessTokenKey);
+
+      if (token == null || token.isEmpty) {
+        debugPrint('ℹ️ No local FCM token found for delete');
+        return;
+      }
+
+      if (accessToken == null || accessToken.isEmpty) {
+        debugPrint('ℹ️ No access token found for delete-fcm-token');
+        return;
+      }
 
       final response = await http.post(
-        Uri.parse('$baseUrl/delete-fcm-token'),
+        Uri.parse('${FCMConfig.baseUrl}/delete-fcm-token'),
         headers: {
-          'Authorization': 'Bearer $accessToken',
-          'Content-Type': 'application/json',
+          HttpHeaders.authorizationHeader: 'Bearer $accessToken',
+          HttpHeaders.contentTypeHeader: 'application/json',
           'Accept': 'application/json',
         },
         body: jsonEncode({'fcm_token': token}),
       );
 
       debugPrint('📡 delete-fcm-token status: ${response.statusCode}');
+      debugPrint('📡 delete-fcm-token body: ${response.body}');
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        await prefs.remove('fcm_token');
-        await prefs.remove('last_synced_fcm_token');
-        debugPrint('✅ FCM token deleted from server and cleared locally');
+        await prefs.remove(_kLastSyncedFcmTokenKey);
+        debugPrint('✅ FCM token deleted from server');
+      } else {
+        debugPrint('❌ delete-fcm-token failed');
       }
     } catch (e) {
       debugPrint('❌ Error deleting FCM token: $e');
     }
+  }
+
+  Future<void> logoutCleanup() async {
+    await deleteTokenFromServer();
+    await clearLoginContext();
+  }
+
+  Future<void> dispose() async {
+    await _onMessageSub?.cancel();
+    await _onMessageOpenedAppSub?.cancel();
+    await _onTokenRefreshSub?.cancel();
   }
 }

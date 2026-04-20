@@ -6,19 +6,17 @@ class TokenStorage {
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
   static const String _userDataKey = 'user_data';
+  static const String _authTypeKey = 'auth_type';
 
-  /// Save tokens and update user data
   static Future<void> saveTokens(
     String accessToken,
     String refreshToken,
   ) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Save individual tokens
     await prefs.setString(_accessTokenKey, accessToken);
     await prefs.setString(_refreshTokenKey, refreshToken);
 
-    // ✅ FIX: Also update tokens in user data
     final userJson = prefs.getString(_userDataKey);
     if (userJson != null) {
       try {
@@ -30,6 +28,16 @@ class TokenStorage {
         print('Error updating user data tokens: $e');
       }
     }
+  }
+
+  static Future<void> saveAuthType(String authType) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_authTypeKey, authType);
+  }
+
+  static Future<String?> getAuthType() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_authTypeKey);
   }
 
   static Future<String?> getAccessToken() async {
@@ -44,6 +52,9 @@ class TokenStorage {
 
   static Future<void> saveUserData(UserEntity user) async {
     final prefs = await SharedPreferences.getInstance();
+
+    final authType = user.isAdmin ? 'admin' : 'user';
+
     final userJson = jsonEncode({
       'data': {
         'id': user.id.toString(),
@@ -55,14 +66,13 @@ class TokenStorage {
       },
       'access_token': user.accessToken,
       'refresh_token': user.refreshToken,
+      'auth_type': authType,
     });
 
-    // Save complete user data
     await prefs.setString(_userDataKey, userJson);
-
-    // ✅ Also save individual tokens for quick access
     await prefs.setString(_accessTokenKey, user.accessToken);
     await prefs.setString(_refreshTokenKey, user.refreshToken);
+    await prefs.setString(_authTypeKey, authType);
   }
 
   static Future<UserEntity?> getUserData() async {
@@ -97,5 +107,6 @@ class TokenStorage {
     await prefs.remove(_accessTokenKey);
     await prefs.remove(_refreshTokenKey);
     await prefs.remove(_userDataKey);
+    await prefs.remove(_authTypeKey);
   }
 }

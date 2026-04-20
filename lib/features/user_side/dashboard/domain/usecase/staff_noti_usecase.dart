@@ -22,3 +22,12 @@ class GetStaffNotificationsUC {
     return repo.getStaffNotifications(type: type, limit: limit, offset: offset);
   }
 }
+
+class DeleteStaffNotificationUC {
+  final StaffNotificationRepository repo;
+  DeleteStaffNotificationUC(this.repo);
+
+  Future<void> call(int notificationId) {
+    return repo.deleteStaffNotification(notificationId);
+  }
+}

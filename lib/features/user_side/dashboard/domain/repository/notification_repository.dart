@@ -7,4 +7,5 @@ abstract class StaffNotificationRepository {
     int limit,
     int offset,
   });
+  Future<void> deleteStaffNotification(int notificationId);
 }
